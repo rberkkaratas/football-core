@@ -10,7 +10,7 @@ Shared foundation for the football model repositories:
 | [football-possession-value](../football-possession-value) | xT, VAEP, OBV / PV-style action valuation |
 | [football-tracking-models](../football-tracking-models) | Pitch control, EPV, OBSO, pressing intensity |
 
-> **Status:** `pitch` (C2) and `schema` (C3) are implemented and tested. Next: snapshots (C6). See [`docs/roadmap.md`](docs/roadmap.md).
+> **Status:** `pitch` (C2), `schema` (C3) and `io.snapshot` with the `fc` CLI (C6) are implemented and tested. Next: the StatsBomb loader (C4). See [`docs/roadmap.md`](docs/roadmap.md).
 
 ## Why a shared package
 Every model repo needs the same three things: read events from different providers, put them
@@ -23,6 +23,16 @@ guarantees that a coordinate in one repo means the same thing in every other.
 - **Data:** scraped WhoScored data never leaves this machine; public work uses StatsBomb open data.
 
 Full detail: [`docs/conventions.md`](docs/conventions.md), [`docs/data-policy.md`](docs/data-policy.md).
+
+## Snapshots
+Freeze a set of parquet tables and check later that they have not changed. Data goes to
+`data/snapshots/<name>/` (git-ignored); commit only `manifests/<name>.json`.
+```bash
+uv run fc snapshot demo --input exports/      # one table per .parquet file
+uv run fc verify manifests/demo.json          # exit 1 and the file name if anything changed
+```
+Run it as `uv run fc` (zsh and bash have a builtin `fc`) or as `football-core`. Details:
+[`docs/api/snapshot.md`](docs/api/snapshot.md).
 
 ## Development
 ```bash

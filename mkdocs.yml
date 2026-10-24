@@ -56,4 +56,6 @@ nav:
   - API reference:
       - pitch: api/pitch.md
       - schema: api/schema.md
+      - io.snapshot: api/snapshot.md
+      - cli: api/cli.md
   - Roadmap: roadmap.md

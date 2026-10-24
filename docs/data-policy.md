@@ -8,17 +8,27 @@
 | Public tracking samples | Tracking models | `data/raw/<provider>/` (git-ignored) | Per that dataset's licence |
 
 ## Snapshots
-A snapshot is an immutable, zstd-compressed parquet export written with **polars**, together
-with a `manifest.json` that records:
+A snapshot is an immutable, zstd-compressed parquet export written with **polars**
+(`football_core.io.snapshot`, the `fc snapshot` command). The data goes to
+`data/snapshots/<name>/<table>.parquet` (git-ignored; the writer refuses a location that git
+would track) and its manifest to `manifests/<name>.json`, which records:
 
-- schema version (`football_core.schema.SCHEMA_VERSION`, also written on every row), creation
-  time and git SHA of `football-core`
-- the source: StatsBomb commit SHA, or the archive path plus a hash of every input file
-- per output file: path, sha256, rows, bytes
-- row counts, match counts and date range per competition-season
-- library versions
+- the schema version (`football_core.schema.SCHEMA_VERSION`, also written on every row) and
+  the C3 schema each table passed
+- the source: a git commit SHA (StatsBomb open data), a digest of every input file (the
+  archive), or a hash of the export SQL plus a digest of the fetched rows (`raw.raw_match_json`)
+- per data file: name, sha256 and bytes, plus one `data_digest` over them
+- per table: rows, match count, columns with dtypes, and rows, matches and date range per
+  competition-season
+- the library versions and football-core's own commit
+
+The manifest has **no timestamp**: a rerun on unchanged inputs writes identical bytes, and
+the git commit time of the manifest stands in for a creation time.
 
 Manifests are committed; data never is. `fc verify` re-hashes a snapshot against its manifest.
+
+**Binding rule:** a manifest for a private source (WhoScored) holds aggregates and digests
+only: `list_files=False`, no per-match ids or file names.
 
 ## Known archive issues the export must handle
 - One match is stored twice under different IDs (`Belgium_Pro_League/…_1904939` is a copy of
