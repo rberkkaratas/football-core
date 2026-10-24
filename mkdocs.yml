@@ -1,0 +1,35 @@
+site_name: football-core
+site_description: "Shared data loading, pitch coordinates and plotting for the football-*-models repos"
+site_author: R.Berk Karatas
+docs_dir: docs
+
+theme:
+  name: material
+  features:
+    - navigation.sections
+    - content.code.copy
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+
+markdown_extensions:
+  - admonition
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.superfences
+
+nav:
+  - Home: index.md
+  - Conventions: conventions.md
+  - Data policy: data-policy.md
+  - Modules: modules.md
+  - Roadmap: roadmap.md

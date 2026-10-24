@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Notebooks
+.ipynb_checkpoints/
+
+# Data: never commit data. Scraped (WhoScored) snapshots must never be published.
+data/*
+!data/README.md
+
+# Trained model artifacts and generated outputs
+artifacts/
+outputs/
+
+# Docs build
+site/
+
+# Environment / OS
+.env
+.DS_Store
