@@ -17,6 +17,7 @@ build-backend = "uv_build"
 [dependency-groups]
 dev = [
     "hypothesis>=6.100.0",
+    "mplsoccer>=1.8.1",
     "mypy>=1.13.0",
     "pytest>=9.1.1",
     "ruff>=0.8.0",

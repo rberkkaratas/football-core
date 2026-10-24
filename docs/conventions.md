@@ -2,41 +2,115 @@
 
 These rules apply to **all** `football-*-models` repositories.
 
-## Coordinate system
+## Canonical pitch frame
 
 All internal tables use metres on a standard **105 x 68 m** pitch.
 
 | Item | Value |
 |---|---|
-| Origin `(0, 0)` | Corner where the attacking team's own goal line meets the touchline on its right-hand side, viewed with play running left to right |
-| `x` | `0 → 105` along the pitch length; the team in possession **always attacks towards `x = 105`** |
-| `y` | `0 → 68` across the pitch width |
+| Origin `(0, 0)` | Bottom-left corner when the pitch is drawn with play running left to right |
+| `x` | `0 → 105` along the length; the team in possession **always attacks towards `x = 105`** |
+| `y` | `0 → 68` across the width, pointing **up**; `y = 0` is the attacking team's **right** touchline |
 | Opponent goal centre | `(105, 34)` |
-| Goal posts | `y = 34 ± 3.66` (goal width 7.32 m) |
-| Goal height | 2.44 m (used for goal-mouth `z`) |
+| Goal posts | `y = 30.34` (shooter's right) and `y = 37.66` (shooter's left), goal width 7.32 m |
+| Goal-mouth height `z` | `0 → 2.44` m (crossbar) |
+
+This is the same orientation as Opta, SPADL and mplsoccer's `custom` pitch, so Opta data needs
+no flip and StatsBomb data needs a y-flip.
 
 !!! note "Assumed pitch size"
-    Real pitch dimensions vary by stadium and providers do not report them, so every
-    event is mapped to the standard 105 x 68 m pitch. Distances are therefore
-    approximations, consistent across providers.
+    Real pitch dimensions vary by stadium and providers do not report them, so every event is
+    mapped to the standard 105 x 68 m pitch. Distances are approximations that are consistent
+    across providers.
 
-### Provider conversions
+## Provider → canonical: piecewise mapping between pitch markings
 
-| Provider | Native frame | To metres |
+Provider grids are **not to scale**. Opta's 0–100 grid stretches the penalty area and squeezes
+the goal, so a single linear scale factor is wrong where it matters most for shot models:
+
+| Landmark | True (m) | Opta, linear `x·1.05`, `y·0.68` | StatsBomb, linear |
+|---|---:|---:|---:|
+| Penalty spot to goal line | 11.00 | 12.08 | 10.50 |
+| Penalty-area depth | 16.50 | 17.85 | 15.75 |
+| Goal width | 7.32 | 6.53 | 6.80 |
+
+Instead, coordinates are mapped **piecewise-linearly between IFAB pitch markings**: each
+provider's landmark lands exactly on the same landmark in metres, and points in between are
+interpolated. This is the approach used by kloppy and mplsoccer's `Standardizer`.
+
+### Length axis (`x`)
+
+| Landmark | Opta | StatsBomb | Metres |
+|---|---:|---:|---:|
+| Own goal line | 0 | 0 | 0 |
+| Own six-yard line | 5.8 | 6 | 5.5 |
+| Own penalty spot | 11.5 | 12 | 11.0 |
+| Own penalty-area line | 17.0 | 18 | 16.5 |
+| Halfway line | 50 | 60 | 52.5 |
+| Opponent penalty-area line | 83.0 | 102 | 88.5 |
+| Opponent penalty spot | 88.5 | 108 | 94.0 |
+| Opponent six-yard line | 94.2 | 114 | 99.5 |
+| Opponent goal line | 100 | 120 | 105 |
+
+### Width axis (`y`)
+
+| Landmark | Opta (`y` up) | StatsBomb (`y` down) | Metres (`y` up) |
+|---|---:|---:|---:|
+| Right touchline | 0 | 80 | 0 |
+| Penalty-area side | 21.1 | 62 | 13.84 |
+| Six-yard side | 36.8 | 50 | 24.84 |
+| Right post | 45.2 | 44 | 30.34 |
+| Left post | 54.8 | 36 | 37.66 |
+| Six-yard side | 63.2 | 30 | 43.16 |
+| Penalty-area side | 78.9 | 18 | 54.16 |
+| Left touchline | 100 | 0 | 68 |
+
+"Right" and "left" are from the attacking team's point of view. Landmark values match
+mplsoccer 1.8.1's `opta`, `statsbomb` and `custom` (105 x 68) pitch definitions, which the
+`football_core.pitch` tests use as an oracle.
+
+### Goal mouth
+
+Shot end locations in the goal mouth use the **same `y` axis** as the pitch (posts at
+30.34 / 37.66 m), so the width mapping above applies unchanged. Height:
+
+| Provider | Field | To metres |
 |---|---|---|
-| Opta / WhoScored | `x, y ∈ [0, 100]`, attacking towards `x = 100`, `y = 0` on the right | `x · 1.05`, `y · 0.68` |
-| StatsBomb | `x ∈ [0, 120]`, `y ∈ [0, 80]`, `y = 0` at the top | `x · 105/120`, `(80 − y) · 68/80` |
-| Tracking (e.g. Metrica, SkillCorner) | provider-specific, often centred metres | per-loader; documented in the loader |
+| Opta / WhoScored | `goalMouthZ` (q103), crossbar at 38 | `z · 2.44 / 38` |
+| StatsBomb | `end_location[2]`, yards, crossbar at 2.67 | `z · 0.9144` |
 
-Exact orientation rules for each provider will be confirmed against real samples and
-covered by unit tests in `football_core.pitch` before any model uses them.
+!!! warning "To verify against real data"
+    The Opta crossbar value (38) comes from kloppy and mplsoccer, not an official Opta document,
+    and the left/right direction of `goalMouthY` must be confirmed against the goal-mouth zone
+    qualifiers (76–87). Both checks belong to milestone P2.1.
+
+### Special cases
+- **Own goals** (Opta qualifier 28) are recorded from the scoring side's perspective; flip with
+  `(105 − x, 68 − y)` when needed.
+- **StatsBomb cell offset:** StatsBomb coordinates are cell-based; whether a half-cell shift is
+  applied is decided in the StatsBomb loader (C4) against kloppy, and the pitch functions accept
+  it as an explicit argument.
+- **Out-of-bounds values** are clipped to the pitch by the interpolation.
+
+## Geometry
+
+With `X = 105 − x` (distance to the goal line) and `C = |y − 34|` (offset from the centre line):
+
+$$
+d = \sqrt{X^2 + C^2}, \qquad
+\theta = \operatorname{atan2}\!\left(7.32\,X,\; X^2 + C^2 - 3.66^2\right) \in [0, \pi]
+$$
+
+`θ` is the angle the two posts subtend at the shot location: 0.6424 rad (36.8°) at the penalty
+spot and π on the goal line between the posts.
 
 ## Naming
 - Code, docs, commits and notebooks: **English**.
-- Columns: `snake_case`; coordinates `x`, `y` (start), `end_x`, `end_y`, goal mouth `goal_y`, `goal_z`.
-- Identifiers: `match_id`, `team_id`, `player_id`, `event_id` are always provider-prefixed
-  strings (e.g. `sb:3788741`, `ws:1903213`) so sources can be mixed without collisions.
+- Columns: `snake_case`; coordinates `x`, `y`, `end_x`, `end_y`, goal mouth `goal_y`, `goal_z`.
+- Identifiers are provider-prefixed strings (`sb:3788741`, `ws:2895397135`). For WhoScored
+  events use the global Opta `id`, not `eventId`, which is numbered per team.
+- DataFrames: **polars**. Convert with `.to_numpy()` / `.to_pandas()` only at library boundaries.
 
 ## Validation splits
-Never split events randomly by row. Split by **match** or **season** to avoid leakage
-between events from the same game.
+Never split events randomly by row. Split by **match**, **season** or **league** to avoid
+leakage between events from the same game.
