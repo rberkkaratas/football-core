@@ -3,7 +3,7 @@
 ```
 src/football_core/
 ├── pitch.py             # provider → 105 x 68 m piecewise mapping, goal mouth, distance & angle
-├── schema.py            # canonical shot table (polars dtypes, pandera model), SCHEMA_VERSION
+├── schema.py            # shot + freeze-frame tables: dtypes, pandera models, column roles
 ├── io/
 │   ├── statsbomb.py     # open-data events + shot freeze frames (GitHub JSON, pinned SHA)
 │   ├── whoscored.py     # CSV archive / raw JSON → canonical shots, dedup, snapshot export
@@ -14,7 +14,7 @@ src/football_core/
 | Module | Status | Milestone |
 |---|---|---|
 | `pitch` | ✅ Done | C2 |
-| `schema` | Planned | C3 |
+| `schema` | ✅ Done | C3 |
 | `io.snapshot` | Planned | C6 |
 | `io.statsbomb` | Planned | C4 |
 | `io.whoscored` | Planned | C5 |

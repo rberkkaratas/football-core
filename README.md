@@ -10,7 +10,7 @@ Shared foundation for the football model repositories:
 | [football-possession-value](../football-possession-value) | xT, VAEP, OBV / PV-style action valuation |
 | [football-tracking-models](../football-tracking-models) | Pitch control, EPV, OBSO, pressing intensity |
 
-> **Status:** `pitch` is implemented and tested (C2). Next: `schema` (C3). See [`docs/roadmap.md`](docs/roadmap.md).
+> **Status:** `pitch` (C2) and `schema` (C3) are implemented and tested. Next: snapshots (C6). See [`docs/roadmap.md`](docs/roadmap.md).
 
 ## Why a shared package
 Every model repo needs the same three things: read events from different providers, put them

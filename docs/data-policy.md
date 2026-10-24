@@ -11,7 +11,8 @@
 A snapshot is an immutable, zstd-compressed parquet export written with **polars**, together
 with a `manifest.json` that records:
 
-- schema version, creation time and git SHA of `football-core`
+- schema version (`football_core.schema.SCHEMA_VERSION`, also written on every row), creation
+  time and git SHA of `football-core`
 - the source: StatsBomb commit SHA, or the archive path plus a hash of every input file
 - per output file: path, sha256, rows, bytes
 - row counts, match counts and date range per competition-season

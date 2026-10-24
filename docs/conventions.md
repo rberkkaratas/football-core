@@ -85,8 +85,11 @@ Shot end locations in the goal mouth use the **same `y` axis** as the pitch (pos
     qualifiers (76–87). Both checks belong to milestone P2.1.
 
 ### Special cases
-- **Own goals** (Opta qualifier 28) are recorded from the scoring side's perspective; flip with
-  `(105 − x, 68 − y)` when needed.
+- **Own goals** (Opta qualifier 28) are recorded from the scoring side's perspective. The
+  canonical shot table stores an own goal in the frame in which the goal the ball entered is
+  at `x = 105`, so `distance_m` and `angle_rad` are measured to that goal; the loader flips
+  with `(105 − x, 68 − y)` when needed. `team_id`, `player_id` and `is_home` still describe
+  the player who put the ball in.
 - **StatsBomb cell offset:** StatsBomb coordinates are cell-based; whether a half-cell shift is
   applied is decided in the StatsBomb loader (C4) against kloppy, and the pitch functions accept
   it as an explicit argument.
@@ -106,10 +109,29 @@ spot and π on the goal line between the posts.
 
 ## Naming
 - Code, docs, commits and notebooks: **English**.
-- Columns: `snake_case`; coordinates `x`, `y`, `end_x`, `end_y`, goal mouth `goal_y`, `goal_z`.
+- Columns: `snake_case`; coordinates `x`, `y`, end location `end_x`, `end_y`, `end_z`, goal
+  mouth `goal_y`, `goal_z`, goalkeeper `gk_x`, `gk_y`. The full column lists are in
+  [`schema`](api/schema.md).
 - Identifiers are provider-prefixed strings (`sb:3788741`, `ws:2895397135`). For WhoScored
   events use the global Opta `id`, not `eventId`, which is numbered per team.
 - DataFrames: **polars**. Convert with `.to_numpy()` / `.to_pandas()` only at library boundaries.
+
+## Canonical tables and leakage
+
+Every loader writes the two tables in [`football_core.schema`](api/schema.md): `shots` (one
+row per shot) and `freeze_frames` (one row per visible player other than the shooter). A
+table must pass `validate_shots` / `validate_freeze_frames` before it is used or saved.
+
+- **Column roles.** Each column has a role: `identity`, `pre_shot`, `post_shot`, `outcome`,
+  `restricted` or `lineage`. Model feature lists are built from the schema, for example
+  `column_names("shots", roles="pre_shot")` for xG, and are never typed by hand. Only
+  `pre_shot` columns are xG features; `big_chance` (`restricted`) is allowed only in a
+  labelled ablation.
+- **Missing values.** Null is the only missing marker: no NaN, no ±inf, and no filled-in
+  default such as 0. For a yes / no flag, `False` means the provider records the attribute
+  for that competition-season and did not tag it; null means it is not recorded there.
+- **Version.** Every row carries `schema_version` (currently `1.0`), and validation rejects
+  any other value.
 
 ## Validation splits
 Never split events randomly by row. Split by **match**, **season** or **league** to avoid
