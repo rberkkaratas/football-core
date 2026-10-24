@@ -26,9 +26,8 @@ Full detail: [`docs/conventions.md`](docs/conventions.md), [`docs/data-policy.md
 ## Development
 ```bash
 uv sync --all-groups
-uv run ruff check .
-uv run pytest
-uv run mkdocs serve      # documentation site at http://127.0.0.1:8000
+make check                  # ruff, mypy, pytest, strict docs build
+make docs-serve             # documentation site at http://127.0.0.1:8000
 ```
 
 ## License

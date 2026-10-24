@@ -16,11 +16,15 @@ build-backend = "uv_build"
 
 [dependency-groups]
 dev = [
+    "hypothesis>=6.100.0",
+    "mypy>=1.13.0",
     "pytest>=9.1.1",
     "ruff>=0.8.0",
 ]
 docs = [
-    "mkdocs-material>=9.5.0",
+    "mkdocstrings[python]>=1.0.0",
+    "nbconvert>=7.16.0",
+    "zensical==0.0.72",  # alpha: pinned exactly, bump deliberately
 ]
 
 [tool.ruff]
@@ -29,6 +33,10 @@ target-version = "py312"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "SIM"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
