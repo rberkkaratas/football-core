@@ -536,6 +536,9 @@ wheels = [
 name = "football-core"
 version = "0.1.0"
 source = { editable = "." }
+dependencies = [
+    { name = "numpy" },
+]
 
 [package.dev-dependencies]
 dev = [
@@ -552,6 +555,7 @@ docs = [
 ]
 
 [package.metadata]
+requires-dist = [{ name = "numpy", specifier = ">=2.0" }]
 
 [package.metadata.requires-dev]
 dev = [

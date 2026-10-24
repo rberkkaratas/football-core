@@ -13,7 +13,7 @@ src/football_core/
 
 | Module | Status | Milestone |
 |---|---|---|
-| `pitch` | In progress | C2 |
+| `pitch` | ✅ Done | C2 |
 | `schema` | Planned | C3 |
 | `io.snapshot` | Planned | C6 |
 | `io.statsbomb` | Planned | C4 |

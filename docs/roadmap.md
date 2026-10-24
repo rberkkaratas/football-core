@@ -7,7 +7,7 @@ roadmap.
 |---|---|---|
 | S0.2 | Coordinate conventions rewritten (piecewise mapping) | ✅ [Conventions](conventions.md) match the C2 tests |
 | S0.3 | Zensical docs, mypy, hypothesis, `make check` | ✅ All five repos pass `make check` |
-| C2 | `pitch` v1 | Landmark, property and mplsoccer-oracle tests pass |
+| C2 | `pitch` v1 | ✅ Landmark, property, doctest and mplsoccer-oracle tests pass (≤ 1e-6 m on 5,000 random points per provider) |
 | C3 | `schema` v1 | Synthetic frames validate; bad enums / coordinates fail clearly |
 | C6 | Snapshots + manifest CLI | Identical hashes on rerun; `verify` catches a one-byte change |
 | C4 | `io.statsbomb` | ~100k shots, zero schema violations, goals reconcile with scores |

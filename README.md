@@ -10,7 +10,7 @@ Shared foundation for the football model repositories:
 | [football-possession-value](../football-possession-value) | xT, VAEP, OBV / PV-style action valuation |
 | [football-tracking-models](../football-tracking-models) | Pitch control, EPV, OBSO, pressing intensity |
 
-> **Status:** skeleton. No modules are implemented yet; see [`docs/roadmap.md`](docs/roadmap.md).
+> **Status:** `pitch` is implemented and tested (C2). Next: `schema` (C3). See [`docs/roadmap.md`](docs/roadmap.md).
 
 ## Why a shared package
 Every model repo needs the same three things: read events from different providers, put them
@@ -19,6 +19,7 @@ guarantees that a coordinate in one repo means the same thing in every other.
 
 ## Conventions (summary)
 - **Coordinates:** metres on a 105 x 68 pitch; the team in possession attacks towards `x = 105`.
+  Provider grids are mapped piecewise between pitch markings, never scaled linearly.
 - **Data:** scraped WhoScored data never leaves this machine; public work uses StatsBomb open data.
 
 Full detail: [`docs/conventions.md`](docs/conventions.md), [`docs/data-policy.md`](docs/data-policy.md).
