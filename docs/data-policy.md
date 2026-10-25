@@ -3,7 +3,7 @@
 | Source | Use | Store | Publish |
 |---|---|---|---|
 | StatsBomb open data (GitHub JSON, pinned commit) | Public training, benchmarks, every published chart | `data/raw/statsbomb/` (git-ignored) | Results and charts only, always with the StatsBomb logo. The licence forbids redistributing the data itself |
-| WhoScored / Opta event CSV archive (scraped; 4,025 matches, 11 competitions, 2025-26 and 2026-27) | Private training and research | Parquet snapshots in `data/snapshots/` (git-ignored) | **Never**: no raw rows, no derived tables, no files in any repo |
+| WhoScored / Opta event CSV archive (scraped; 4,075 `match_ids` rows, 4,025 event files, 11 competitions, 2025-26 and 2026-27) | Private training and research | Parquet snapshots in `data/snapshots/` (git-ignored) | **Never**: no raw rows, no derived tables, no files in any repo |
 | WhoScored raw JSON in `opposition-engine` (`raw.raw_match_json`) | Lossless source for new matches | Same as above | **Never** |
 | Public tracking samples | Tracking models | `data/raw/<provider>/` (git-ignored) | Per that dataset's licence |
 
@@ -38,10 +38,13 @@ would track) and its manifest to `manifests/<name>.json`, which records:
 The manifest has **no timestamp**: a rerun on unchanged inputs writes identical bytes, and
 the git commit time of the manifest stands in for a creation time.
 
-Manifests are committed; data never is. `fc verify` re-hashes a snapshot against its manifest.
+Manifests of public sources are committed; data never is. `fc verify` re-hashes a snapshot
+against its manifest.
 
 **Binding rule:** a manifest for a private source (WhoScored) holds aggregates and digests
-only: `list_files=False`, no per-match ids or file names.
+only: `list_files=False`, no per-match ids or file names. It still holds per
+competition-season counts and dates, so `manifests/whoscored-*.json` is git-ignored in every
+repo and never committed; the consumer's copy (football-shot-models) is the authoritative one.
 
 ## Known archive issues the export must handle
 - One match is stored twice under different IDs: `Championship/…_1908515` is the real one and
@@ -51,6 +54,26 @@ only: `list_files=False`, no per-match ids or file names.
   Columns are read by name; goals come from `type`, own goals from qualifier 28.
 - `eventId` is numbered per team. The global `id` identifies shots; WhoScored reuses it on some
   synthetic `OffsideGiven` events, so it is not assumed unique across all events.
+
+## WhoScored archive: what `io.whoscored` keeps
+- **Keep rule, status first.** Every `match_ids` row is counted once: a status other than `ok`
+  drops the match under that status (`wrong_competition`, `pending`, or `unvalidated` for an
+  empty status) and its files are never opened; an `ok` row without an event file is
+  `no_event_file`; an event file without a `match_ids` row is `unvalidated`. On the archive:
+  3,802 kept; dropped wrong_competition 1, pending 6, unvalidated 252, no_event_file 14. The
+  builder logs each count.
+- **Home and away are never inferred.** They come from the metadata JSON (its two team ids must
+  be the file's) or else from the validated team names in `match_ids`, each matched to exactly
+  one team of the file.
+- **Scores.** 1,612 kept matches have no metadata and no score. In the 4 extra-time matches the
+  metadata holds the 90-minute score: it must equal the goals of periods 1–2, and is then
+  nulled, because the canonical score is the final score. Goals reconcile with the score in
+  every one of the 2,186 scored matches (shoot-outs excluded).
+- **Short matches.** 4 kept matches have their last event before minute 85. They are kept as
+  recorded and counted; nothing in the data tells an abandoned match from a cut-short scrape.
+- **Opta flags are not StatsBomb's.** `first_time` is Opta q328 and `one_on_one` q89. On men's
+  big-five league shots their shares are 0.511 vs 0.315 (StatsBomb `first_time`) and 0.019 vs
+  0.055 (StatsBomb `one_on_one`), so a model fitted on one provider is not reused on the other.
 
 ## Rule of thumb
 If a file came from WhoScored, it stays in a git-ignored folder on this machine.

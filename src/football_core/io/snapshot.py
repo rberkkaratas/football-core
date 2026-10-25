@@ -20,8 +20,9 @@ manifest it is about to commit.
 
 **Extension point.** A builder turns inputs into tables plus a ``Source``. Provider loaders
 add one ``"module:function"`` line to ``BUILTIN_BUILDERS``; ``register_builder`` adds one at
-runtime. Built in: ``parquet`` (plain parquet files) and ``statsbomb`` (StatsBomb open data,
-``football_core.io.statsbomb``).
+runtime. Built in: ``parquet`` (plain parquet files), ``statsbomb`` (StatsBomb open data,
+``football_core.io.statsbomb``) and ``whoscored`` (the private WhoScored CSV archive,
+``football_core.io.whoscored``). The two provider builders share ``C3_SORT_BY``.
 """
 
 from __future__ import annotations
@@ -83,6 +84,18 @@ BUILTIN_BUILDERS: Final[Mapping[str, str]] = MappingProxyType(
     {
         "parquet": "football_core.io.snapshot:build_from_parquet",
         "statsbomb": "football_core.io.statsbomb:build_snapshot",
+        "whoscored": "football_core.io.whoscored:build_snapshot",
+    }
+)
+# The sort keys of the C3 provider builders (statsbomb, whoscored): one definition, same bytes.
+C3_SORT_BY: Final[Mapping[str, tuple[str, ...]]] = MappingProxyType(
+    {
+        "shots": (
+            *("match_date", "competition_id", "season_id", "match_id", "period"),
+            *("seconds_in_period", "shot_id"),
+        ),
+        "freeze_frames": ("shot_id",),
+        "matches": ("match_date", "match_id"),
     }
 )
 DATE_RANGE: Final[tuple[str, str]] = ("0001-01-01", "9999-12-31")  # Python date's range

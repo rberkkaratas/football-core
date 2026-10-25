@@ -15,6 +15,8 @@ build/
 # Data: never commit data. Scraped (WhoScored) snapshots must never be published.
 data/*
 !data/README.md
+# WhoScored snapshot manifests carry per competition-season counts: private, never committed.
+manifests/whoscored-*.json
 
 # Trained model artifacts and generated outputs
 artifacts/

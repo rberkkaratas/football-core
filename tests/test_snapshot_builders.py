@@ -39,14 +39,14 @@ def test_builtin_parquet_listed() -> None:
 def test_register_and_get() -> None:
     snapshot.register_builder("toy", _toy)
     assert snapshot.get_builder("toy") is _toy
-    assert snapshot.builder_names() == ("parquet", "statsbomb", "toy")
+    assert snapshot.builder_names() == ("parquet", "statsbomb", "toy", "whoscored")
     snapshot.register_builder("a-first", _toy2)
-    assert snapshot.builder_names() == ("a-first", "parquet", "statsbomb", "toy")
+    assert snapshot.builder_names() == ("a-first", "parquet", "statsbomb", "toy", "whoscored")
 
 
 def test_registry_is_isolated_between_tests() -> None:
     """The autouse fixture (conftest) gives every test a fresh registry."""
-    assert snapshot.builder_names() == ("parquet", "statsbomb")
+    assert snapshot.builder_names() == ("parquet", "statsbomb", "whoscored")
 
 
 def test_register_duplicate_rejected() -> None:
@@ -65,14 +65,14 @@ def test_register_replace() -> None:
 def test_register_replace_builtin() -> None:
     snapshot.register_builder("parquet", _toy, replace=True)
     assert snapshot.get_builder("parquet") is _toy
-    assert snapshot.builder_names() == ("parquet", "statsbomb")
+    assert snapshot.builder_names() == ("parquet", "statsbomb", "whoscored")
 
 
 @pytest.mark.parametrize("name", ["Toy", "", "a b", "toy\n", "-toy", "a" * 65, "tö"])
 def test_register_rejects_bad_name(name: str) -> None:
     with pytest.raises(ValueError):
         snapshot.register_builder(name, _toy)
-    assert snapshot.builder_names() == ("parquet", "statsbomb")
+    assert snapshot.builder_names() == ("parquet", "statsbomb", "whoscored")
 
 
 def test_register_rejects() -> None:
@@ -83,7 +83,7 @@ def test_register_rejects() -> None:
     with pytest.raises(ValueError, match="parquet"):
         snapshot.register_builder("parquet", _toy)
     assert snapshot.get_builder("parquet") is snapshot.build_from_parquet
-    assert snapshot.builder_names() == ("parquet", "statsbomb")
+    assert snapshot.builder_names() == ("parquet", "statsbomb", "whoscored")
 
 
 def test_get_builder_non_callable_target(monkeypatch: pytest.MonkeyPatch) -> None:

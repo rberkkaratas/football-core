@@ -8,12 +8,10 @@ src/football_core/
 ├── io/
 │   ├── __init__.py      # package docstring only; loaders are imported by name
 │   ├── statsbomb.py     # open data at a pinned commit → shots, freeze frames, matches; logo
+│   ├── whoscored.py     # private WhoScored / Opta CSV archive → shots and matches (no frames)
 │   └── snapshot.py      # parquet + manifest writer and verifier, builder registry
 └── viz.py               # shot map, front-on goal-mouth plot, attribution
 ```
-
-Planned (C5, not written yet): `io/whoscored.py`, the WhoScored CSV archive → canonical
-shots, dedup and snapshot export.
 
 | Module | Status | Milestone |
 |---|---|---|
@@ -22,7 +20,7 @@ shots, dedup and snapshot export.
 | `io.snapshot` | ✅ Done | C6 |
 | `cli` | ✅ Done | C6 |
 | `io.statsbomb` | ✅ Done | C4 |
-| `io.whoscored` | Planned | C5 |
+| `io.whoscored` | ✅ Done (builder `whoscored`; manifest git-ignored) | C5 |
 | `viz` | ✅ Done (`viz` extra: matplotlib) | C7 |
 
 Every module ships with unit tests before a model repo depends on it. Reference libraries

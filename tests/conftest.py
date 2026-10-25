@@ -1,6 +1,8 @@
-"""Shared fixtures for the schema (C3), snapshot (C6), StatsBomb loader (C4) and viz (C7) tests.
+"""Shared fixtures for the schema (C3), snapshot (C6), StatsBomb loader (C4), WhoScored loader
+(C5) and viz (C7) tests.
 
-Builders live in ``schema_cases``, ``snapshot_cases``, ``statsbomb_cases`` and ``viz_cases``.
+Builders live in ``schema_cases``, ``snapshot_cases``, ``statsbomb_cases``, ``whoscored_cases``
+and ``viz_cases``.
 
 Imports are inside the fixtures so the pitch tests still collect while the C3 dependencies
 (polars, pandera) are not installed yet.
@@ -52,6 +54,18 @@ def sb_standard(tmp_path_factory: pytest.TempPathFactory) -> Any:
     import statsbomb_cases as sbc
 
     return sbc.load_matches(tmp_path_factory.mktemp("sb_standard"), sbc.standard_matches())
+
+
+@pytest.fixture(scope="session")
+def ws_standard(tmp_path_factory: pytest.TempPathFactory) -> Any:
+    """The standard WhoScored archive (``whoscored_cases.standard``), written and loaded once.
+
+    Returns ``whoscored_cases.Loaded(root, archive)``; the archive is a frozen dataclass of
+    polars frames, so sharing it is safe.
+    """
+    import whoscored_cases as wsc
+
+    return wsc.load_fixture(tmp_path_factory.mktemp("ws_standard"), wsc.standard())
 
 
 @pytest.fixture(autouse=True)

@@ -119,12 +119,6 @@ _TECHNIQUES: Final[Mapping[str, str]] = {
     for name in ("Normal", "Volley", "Half Volley", "Lob", "Backheel", "Diving Header",
                  "Overhead Kick")
 }
-_SORT_BY: Final[Mapping[str, tuple[str, ...]]] = {
-    "shots": ("match_date", "competition_id", "season_id", "match_id", "period",
-              "seconds_in_period", "shot_id"),
-    "freeze_frames": ("shot_id",),
-    "matches": ("match_date", "match_id"),
-}
 # fmt: on
 
 _log = logging.getLogger(__name__)
@@ -841,57 +835,7 @@ def load(checkout: StrPath, *, match_ids: Collection[int] | None = None) -> Open
     return OpenData(shot_table, frame_table, match_table, tuple(skipped))
 
 
-# A null score never equals a goal count, so an unscored match is always reported.
-_DIFFERS: Final = pl.col("home_goals").ne_missing(pl.col("home_score").cast(pl.Int64)) | pl.col(
-    "away_goals"
-).ne_missing(pl.col("away_score").cast(pl.Int64))
-
-
-def reconcile_goals(shots: pl.DataFrame, matches: pl.DataFrame) -> pl.DataFrame:
-    """Matches whose goals in ``shots`` differ from the recorded score.
-
-    Shoot-out kicks (period 5) are excluded; an own goal counts for the other side.
-
-    Parameters
-    ----------
-    shots : polars.DataFrame
-        Needs ``match_id``, ``is_goal``, ``is_own_goal``, ``is_home`` and ``period``.
-    matches : polars.DataFrame
-        Needs ``match_id``, ``home_score`` and ``away_score``.
-
-    Returns
-    -------
-    polars.DataFrame
-        ``match_id, home_score, away_score, home_goals, away_goals``, sorted by match; empty
-        when every match reconciles. A match without a recorded score is always reported, so
-        callers filter unscored matches explicitly.
-
-    Examples
-    --------
-    >>> shots = pl.DataFrame({"match_id": ["sb:1", "sb:1"], "is_goal": [True, True],
-    ...                       "is_own_goal": [False, True], "is_home": [True, True],
-    ...                       "period": [1, 2]})
-    >>> matches = pl.DataFrame({"match_id": ["sb:1", "sb:2"], "home_score": [1, 0],
-    ...                         "away_score": [1, 0]})
-    >>> reconcile_goals(shots, matches).height
-    0
-    """
-    home_side = pl.col("is_home") ^ pl.col("is_own_goal")  # an own goal counts for the other side
-    goals = (
-        shots.filter(pl.col("is_goal") & (pl.col("period") != 5))
-        .group_by("match_id")
-        .agg(
-            home_side.sum().cast(pl.Int64).alias("home_goals"),
-            (~home_side).sum().cast(pl.Int64).alias("away_goals"),
-        )
-    )
-    return (
-        matches.join(goals, on="match_id", how="left")
-        .with_columns(pl.col("home_goals", "away_goals").fill_null(0))
-        .filter(_DIFFERS)
-        .select("match_id", "home_score", "away_score", "home_goals", "away_goals")
-        .sort("match_id")
-    )
+reconcile_goals = schema.reconcile_goals  # moved to schema (C5); kept as an alias
 
 
 def build_snapshot(request: BuildRequest) -> BuildResult:
@@ -937,7 +881,7 @@ def build_snapshot(request: BuildRequest) -> BuildResult:
         )
     commit = request.params.get("commit", OPEN_DATA_COMMIT)
     data = load(sync(request.inputs[0], commit=commit))
-    bad = reconcile_goals(data.shots, data.matches)
+    bad = schema.reconcile_goals(data.shots, data.matches)
     if bad.height:
         rows = "; ".join(str(r) for r in bad.head(5).iter_rows())
         raise ValueError(
@@ -953,5 +897,5 @@ def build_snapshot(request: BuildRequest) -> BuildResult:
     return BuildResult(
         {"shots": data.shots, "freeze_frames": data.freeze_frames, "matches": data.matches},
         snapshot.source_from_git(OPEN_DATA_URL, commit),
-        sort_by=_SORT_BY,
+        sort_by=snapshot.C3_SORT_BY,
     )

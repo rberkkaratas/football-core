@@ -527,11 +527,11 @@ def test_data_dir_with_many_manifests_exits_2(
 def test_builders_lists_builtins(capsys: pytest.CaptureFixture[str]) -> None:
     rc, out, _ = _run(capsys, "builders")
     assert rc == 0
-    assert out == "parquet\nstatsbomb\n"
+    assert out == "parquet\nstatsbomb\nwhoscored\n"
     snapshot.register_builder("toy", lambda request: None)  # type: ignore[arg-type, return-value]
     snapshot.register_builder("alpha", lambda request: None)  # type: ignore[arg-type, return-value]
     rc, out, _ = _run(capsys, "builders")
-    assert out.splitlines() == ["alpha", "parquet", "statsbomb", "toy"]
+    assert out.splitlines() == ["alpha", "parquet", "statsbomb", "toy", "whoscored"]
 
 
 def test_version(capsys: pytest.CaptureFixture[str]) -> None:
