@@ -45,6 +45,9 @@ against its manifest.
 only: `list_files=False`, no per-match ids or file names. It still holds per
 competition-season counts and dates, so `manifests/whoscored-*.json` is git-ignored in every
 repo and never committed; the consumer's copy (football-shot-models) is the authoritative one.
+The name glob is not the only guard: the `whoscored` builder returns `BuildResult(private=True)`,
+and `write_snapshot` then refuses, before writing anything, a manifest path that git would not
+ignore (for example `uv run fc snapshot ws-2027 --builder whoscored`, outside the glob).
 
 ## Known archive issues the export must handle
 - One match is stored twice under different IDs: `Championship/…_1908515` is the real one and

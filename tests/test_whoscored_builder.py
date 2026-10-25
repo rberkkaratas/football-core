@@ -19,6 +19,7 @@ from football_core import cli, schema
 from football_core.io import snapshot, statsbomb, whoscored
 
 NAME = "ws-fixture"
+IGNORE = f"data/*\nmanifests/{NAME}.json\n"  # the builder is private: its manifest is ignored
 SORT_BY = {
     "shots": ("match_date", "competition_id", "season_id", "match_id", "period",
               "seconds_in_period", "shot_id"),
@@ -57,7 +58,7 @@ def _forbidden() -> set[str]:
 @snc.needs_git
 def test_manifest_private_and_verify(tmp_path: Path) -> None:
     archive = _archive(tmp_path)
-    repo = snc.git_repo(tmp_path / "repo")
+    repo = snc.git_repo(tmp_path / "repo", ignore=IGNORE)
     result = snapshot.snapshot_from_builder(NAME, "whoscored", inputs=[archive], root=repo)
     assert result.status == "created"
     text = snc.manifest_path(repo, NAME).read_text(encoding="utf-8")
@@ -99,11 +100,29 @@ def test_refuses_unreconciled(tmp_path: Path) -> None:
     fx.match("main").scores = (2, 2)  # the shots give 1-2
     archive = _archive(tmp_path, fx)
     whoscored.load(archive)  # loads: reconciliation is the builder's
-    repo = snc.git_repo(tmp_path / "repo")
+    repo = snc.git_repo(tmp_path / "repo", ignore=IGNORE)
     before = snc.tree(repo)
     with pytest.raises(ValueError, match=f"ws:{wsc.MAIN}"):
         snapshot.snapshot_from_builder(NAME, "whoscored", inputs=[archive], root=repo)
     snc.assert_nothing_written(repo, NAME, before)
+
+
+@snc.needs_git
+def test_private_manifest_must_be_ignored(tmp_path: Path) -> None:
+    """run4-ms4 #5, hard rule 1: the builder marks its result private, so a manifest path git
+    would not ignore (a name outside the repo's ignore glob) is refused before anything is
+    written; the StatsBomb builder's manifest stays committable."""
+    archive = _archive(tmp_path)
+    assert whoscored.build_snapshot(snapshot.BuildRequest((archive,), {})).private
+    repo = snc.git_repo(tmp_path / "repo")  # data/* only
+    before = snc.tree(repo)
+    with pytest.raises(ValueError, match="would not be git-ignored") as info:
+        snapshot.snapshot_from_builder(NAME, "whoscored", inputs=[archive], root=repo)
+    assert f"manifests/{NAME}.json" in str(info.value)
+    snc.assert_nothing_written(repo, NAME, before)
+    assert not snapshot.BuildResult(
+        {}, snapshot.source_from_git("https://x.invalid", "0" * 40)
+    ).private
 
 
 @pytest.mark.parametrize(
@@ -129,7 +148,7 @@ def test_inputs_and_params(tmp_path: Path, inputs: tuple[str, ...], params: dict
 @snc.needs_git
 def test_cli(capsys: pytest.CaptureFixture[str], tmp_path: Path) -> None:
     archive = _archive(tmp_path)
-    repo = snc.git_repo(tmp_path / "repo")
+    repo = snc.git_repo(tmp_path / "repo", ignore=IGNORE)
     args = ["snapshot", NAME, "--builder", "whoscored", "--root", str(repo)]
     rc, out, err = _run(capsys, *args, "--input", str(archive))
     assert rc == 0, err

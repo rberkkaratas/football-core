@@ -97,6 +97,11 @@ def _stem_date(fx: wsc.Fixture) -> None:
     m.date, m.scores = "31022026", None  # no metadata: only the stem carries the date
 
 
+def _stem_date_outside_season(fx: wsc.Fixture) -> None:
+    m = fx.match("main")  # 2025-2026 folder; the date is a real day two years on
+    m.date, m.scores = "16082027", None  # no metadata: only the stem carries the date
+
+
 def _second_metadata(fx: wsc.Fixture) -> None:
     m = fx.match("main")
     path = f"events/{m.folder}/{m.season}/metadata/17082025_{wsc.MAIN}_metadata.json"
@@ -194,6 +199,8 @@ CASES: dict[str, tuple[Mutation, tuple[str | tuple[str, ...], ...]]] = {
     "season_folder_not_consecutive": (_set("main", "season", "2025-2027"), ("2025-2027",)),
     "season_folder_short_form": (_set("main", "season", "2025-26"), ("2025-26",)),
     "stem_date_not_a_date": (_stem_date, ("31022026",)),
+    "stem_date_outside_season_folder": (_stem_date_outside_season,
+                                        ("2027-08-16", "outside its season folder")),
     "csv_with_another_stem": (_stray_csv, ("notes.csv",)),
     "row_from_another_match_ids_file": (_set("main", "ids_file", "Championship_2026-2027"),
                                         (str(wsc.MAIN),)),

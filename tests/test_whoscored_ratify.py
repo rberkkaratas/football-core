@@ -158,6 +158,43 @@ def test_no_in_play_event_counts_short(tmp_path: Path) -> None:
     assert archive.counts["ended_before_85"] == 1
 
 
+# run4-ms4 #18: the ended_before_85 boundary, on the last in-play event (84 counts, 85 not).
+@pytest.mark.parametrize(("last", "counted"), [(84, 1), (85, 0)])
+def test_ended_before_85_boundary(tmp_path: Path, last: int, counted: int) -> None:
+    m = wsc.short_match()
+    for e in m.events:
+        if e.period == "SecondHalf" and e.type == "End":
+            e.minute = last
+    in_play = [e.minute for e in m.events if e.period in whoscored.PERIODS]
+    assert max(in_play) == last and max(e.minute for e in m.events) > last  # PostGame at 90
+    archive = wsc.load_fixture(tmp_path, wsc.Fixture([m])).archive
+    assert archive.counts["ended_before_85"] == counted
+
+
+# run4-ms4 #16: the own-goal convention of the extra-time 90-minute check. K's own goal in
+# period 2 counts for J, so the 90-minute score is 2-1; the swapped 1-2 is refused.
+@pytest.mark.parametrize(("score", "ok"), [((2, 1), True), ((1, 2), False)])
+def test_extra_time_own_goal(tmp_path: Path, score: tuple[int, int], ok: bool) -> None:
+    m = wsc.et_match()
+    own = wsc.Ev(wsc.ET_K_ET_GOAL + 1, 22, wsc.K, "Goal", "SecondHalf", 85, 0, "6.0", "50.0",
+                 quals=[wsc.q(22), wsc.q(20), wsc.q(28)], mouth=("50.0", "5.0"))  # fmt: skip
+    end = next(i for i, e in enumerate(m.events) if e.period == "SecondHalf" and e.type == "End")
+    m.events.insert(end, own)
+    m.scores = score
+    assert m.home == wsc.J and any(e.period in whoscored.EXTRA_TIME for e in m.events)
+    wsc.write_archive(tmp_path, wsc.Fixture([m]))
+    if not ok:
+        with pytest.raises(ValueError, match=f"{score[0]}-{score[1]} is not its periods 1-2 goals"):
+            whoscored.load(tmp_path)
+        return
+    archive = whoscored.load(tmp_path)
+    (row,) = archive.matches.to_dicts()
+    assert (row["home_score"], row["away_score"]) == (None, None)
+    assert archive.counts["extra_time"] == 1
+    og = _row(archive, wsc.ET_K_ET_GOAL + 1)
+    assert og["is_own_goal"] and og["team_id"] == f"ws:{wsc.K}" and og["period"] == 2
+
+
 # 8. Read errors on an opened file become a ValueError naming the file.
 @pytest.mark.parametrize("case", ["header_not_utf8", "minute_overflow", "match_ids_parse"])
 def test_read_errors_name_the_file(tmp_path: Path, case: str) -> None:

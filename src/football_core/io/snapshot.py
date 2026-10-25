@@ -427,11 +427,17 @@ class BuildRequest:
 
 @dataclass(frozen=True)
 class BuildResult:
-    """What a builder returns: the tables, their source and optional leading sort keys."""
+    """What a builder returns: the tables, their source and optional leading sort keys.
+
+    ``private`` marks data whose manifest must stay out of git too (its per competition-season
+    counts and dates describe private data): ``write_snapshot`` then refuses a manifest path
+    that git would not ignore, as it does for the table files.
+    """
 
     tables: Mapping[str, pl.DataFrame]
     source: Source
     sort_by: Mapping[str, tuple[str, ...]] = field(default_factory=dict)
+    private: bool = False
 
 
 # --- Errors -----------------------------------------------------------------------------------
@@ -978,7 +984,10 @@ def _existing_anchor(path: Path) -> Path:
     return Path(path.anchor or ".")
 
 
-def _check_ignored(path: Path) -> None:
+_DATA_HINT: Final = "add `data/*` to the repo's .gitignore or run from the repo root (--root)"
+
+
+def _check_ignored(path: Path, what: str = "data file", hint: str = _DATA_HINT) -> None:
     """Refuse a data path that git would not ignore (fail closed when git cannot tell)."""
     # git -C on a missing directory looks like "no work tree", and so does one reached through a
     # symlinked data/ that points outside the repo: anchor at the nearest real directory.
@@ -995,20 +1004,21 @@ def _check_ignored(path: Path) -> None:
     if ci.returncode == 0:
         return
     if ci.returncode == 1:
-        raise ValueError(
-            f"data file '{path}' would not be git-ignored; add `data/*` to the repo's "
-            ".gitignore or run from the repo root (--root)"
-        )
+        raise ValueError(f"{what} '{path}' would not be git-ignored; {hint}")
     first = next(iter(ci.stderr.splitlines()), "").strip() or "(no stderr)"
     raise ValueError(
         f"cannot check whether '{path}' is git-ignored (git exit {ci.returncode}): {first}"
     )
 
 
-def _guard(r: Path, name: str, tables: Iterable[str]) -> None:
-    """Refuse data files that git would not ignore, one ``_check_ignored`` per table file."""
+def _guard(r: Path, name: str, tables: Iterable[str], *, private: bool = False) -> None:
+    """Refuse data files that git would not ignore, one ``_check_ignored`` per table file, and
+    for private data the manifest too."""
     for table in sorted(tables):
         _check_ignored(r / DATA_SUBDIR / name / f"{table}.parquet")
+    if private:
+        hint = f"add `{MANIFEST_SUBDIR}/{name}.json` (or a glob) to the repo's .gitignore"
+        _check_ignored(r / MANIFEST_SUBDIR / f"{name}.json", "private manifest", hint)
 
 
 def _remove(path: Path) -> None:
@@ -1080,6 +1090,7 @@ def write_snapshot(
     sort_by: Mapping[str, Sequence[str]] | None = None,
     overwrite: bool = False,
     builder: str | None = None,
+    private: bool = False,
 ) -> SnapshotResult:
     """Validate, sort and write tables as a snapshot plus its manifest.
 
@@ -1106,6 +1117,9 @@ def write_snapshot(
         Replace a snapshot whose files differ (otherwise ``SnapshotExistsError``).
     builder : str, optional
         Name of the builder that produced the tables, recorded in the manifest.
+    private : bool, default False
+        The manifest describes private data (``BuildResult.private``): it must be git-ignored
+        too when ``root`` is in a work tree.
 
     Returns
     -------
@@ -1121,7 +1135,8 @@ def write_snapshot(
     ValueError
         A bad name, builder or table name, a bad ``sort_by``, no tables, a 0-column table,
         an ``Object`` column, ``freeze_frames`` without ``shots``, a grouped ``match_date``
-        outside ``DATE_RANGE``, or data that git would not ignore.
+        outside ``DATE_RANGE``, or data (with ``private``, also a manifest) that git would not
+        ignore.
     football_core.schema.SchemaValidationError
         A canonical table fails its schema.
     SnapshotExistsError
@@ -1177,7 +1192,7 @@ def write_snapshot(
 
     # 4. The data must be git-ignored (still nothing written).
     base = Path(root)
-    _guard(_resolve(base), name, prepared)
+    _guard(_resolve(base), name, prepared, private=private)
 
     snapdir = base / DATA_SUBDIR
     final = snapdir / name
@@ -1982,6 +1997,7 @@ def snapshot_from_builder(
         sort_by=result.sort_by,
         overwrite=overwrite,
         builder=builder,
+        private=result.private,
     )
 
 

@@ -46,7 +46,7 @@ from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 from types import MappingProxyType
-from typing import Any, Final, Literal
+from typing import Any, Final, Literal, TypedDict
 
 import numpy as np
 import polars as pl
@@ -182,6 +182,24 @@ class _EventFile:
     match_date: date
 
 
+class _MatchRow(TypedDict):
+    """A kept match's ``matches`` columns before the score (typed, so mypy checks the shots'
+    match columns between parsing and ``cast_to_schema``)."""
+
+    match_id: str
+    provider: str
+    competition_id: str
+    season_id: str
+    match_date: date
+    home_team_id: str
+    away_team_id: str
+    competition_name: str
+    season_name: str
+    gender: str
+    has_360: bool | None
+    schema_version: str
+
+
 # --- Reading ----------------------------------------------------------------------------------
 
 
@@ -257,6 +275,11 @@ def _event_files(events: Path, listed: Mapping[str, _Listed]) -> dict[str, _Even
                     raise ValueError(
                         f"event file '{path}': {path.name[:8]} is not a date"
                     ) from None
+                if day.year not in (int(years[1]), int(years[2])):  # season_name comes from it
+                    raise ValueError(
+                        f"event file '{path}': its date {day} is outside its season folder "
+                        f"'{season.name}'"
+                    )
                 mid = stem[4]
                 if mid in found:
                     raise ValueError(
@@ -408,7 +431,7 @@ def _shot_rows(df: pl.DataFrame, where: str) -> pl.DataFrame:
 
 
 def _add_shots(
-    df: pl.DataFrame, match: Mapping[str, Any], cols: defaultdict[str, list[Any]], where: str
+    df: pl.DataFrame, match: _MatchRow, cols: defaultdict[str, list[Any]], where: str
 ) -> tuple[int, int]:
     """Append the match's shots to ``cols``; return the periods 1-2 goals (home, away)."""
     shots = _shot_rows(df, where)
@@ -461,7 +484,10 @@ def _add_shots(
         except (ValueError, TypeError, RecursionError) as e:
             raise ValueError(f"{at}: qualifiers cannot be written as JSON: {e}") from None
         values: dict[str, object] = {
-            **{k: match[k] for k in ("match_id", "competition_id", "season_id", "match_date")},
+            "match_id": match["match_id"],
+            "competition_id": match["competition_id"],
+            "season_id": match["season_id"],
+            "match_date": match["match_date"],
             "shot_id": "ws:" + r["id"],
             "team_id": team,
             "opponent_team_id": away_id if team == home_id else home_id,
@@ -570,7 +596,7 @@ def _load_match(
         home_score = away_score = None
     competition = COMPETITIONS[event.folder]
     first, second = event.season.split("-")
-    match: dict[str, object] = {
+    match: _MatchRow = {
         "match_id": f"ws:{mid}",
         "provider": "whoscored",
         "competition_id": f"ws:{event.folder}",
@@ -597,7 +623,7 @@ def _load_match(
         home_score = away_score = None
     last = df.filter(pl.col("period").is_in(list(PERIODS)))["minute"].str.replace(_NORM, "")
     last_minute = last.cast(pl.Int64).max()
-    if last_minute is None or int(last_minute) < SHORT_MATCH_MINUTE:  # type: ignore[arg-type]
+    if not isinstance(last_minute, int) or last_minute < SHORT_MATCH_MINUTE:  # None: no play
         counts[SHORT_NOTE] += 1
     return {**match, "home_score": home_score, "away_score": away_score}
 
@@ -701,7 +727,8 @@ def build_snapshot(request: BuildRequest) -> BuildResult:
     -------
     BuildResult
         Tables ``shots``, ``freeze_frames`` (empty) and ``matches``, a private ``files``
-        source and ``snapshot.C3_SORT_BY``.
+        source, ``snapshot.C3_SORT_BY`` and ``private=True``, so the manifest must be
+        git-ignored too.
 
     Raises
     ------
@@ -750,4 +777,5 @@ def build_snapshot(request: BuildRequest) -> BuildResult:
         {"shots": data.shots, "freeze_frames": data.freeze_frames, "matches": data.matches},
         snapshot.source_from_files(data.files, root=root, uri=ARCHIVE_URI, list_files=False),
         sort_by=snapshot.C3_SORT_BY,
+        private=True,
     )

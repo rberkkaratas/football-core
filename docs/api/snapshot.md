@@ -200,7 +200,9 @@ def build_snapshot(request: BuildRequest) -> BuildResult:
 ```
 
 `sort_by` is optional: it sets the leading sort keys (identity or pre-shot columns only on
-`shots` / `freeze_frames`); every remaining column follows as a tie-breaker.
+`shots` / `freeze_frames`); every remaining column follows as a tie-breaker. `private=True`
+(the `whoscored` builder sets it) marks a manifest that describes private data: the writer
+then checks that git ignores the manifest path too, as it does for the table files.
 
 For a builder that reads a git clone, `git_revision` gives a commit only when the input is
 the **clone root**; a subfolder silently takes the file-digest fallback. A git call that
