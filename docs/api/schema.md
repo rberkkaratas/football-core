@@ -202,10 +202,16 @@ shots: 2 schema problem(s) (schema 1.1)
 
 ## Versioning
 
-`SCHEMA_VERSION = "1.1"` (`MAJOR.MINOR`), written on every row and checked exactly. A MINOR
-bump adds a nullable column or a rule that every existing snapshot satisfies. A MAJOR bump
-removes or renames a column, changes a dtype, changes **any** enum's categories, changes a
-column's role or tightens a range.
+`SCHEMA_VERSION = "1.1"` (`MAJOR.MINOR`), written on every row and checked exactly, and
+`load_snapshot` refuses a snapshot written with any other version. So **every bump, MINOR
+included, requires rebuilding every snapshot** (`fc snapshot ...`), and the consumers' outputs
+that print the data digest (the shot-models cards and README) change and must be regenerated.
+The two levels say what consumers must change in their code, not whether data is rebuilt:
+
+- **MINOR** adds a nullable column, a table, or a rule that every existing snapshot
+  satisfies: consumer code needs no change, only the rebuild.
+- **MAJOR** removes or renames a column, changes a dtype, changes **any** enum's categories,
+  changes a column's role or tightens a range: consumer code may need to change too.
 
 Adding a canonical table is a MINOR bump. Snapshots that hold a table of that name without a
 schema (`schema: null`) are refused by the manifest reader and must be rebuilt, never
