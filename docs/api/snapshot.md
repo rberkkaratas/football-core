@@ -26,7 +26,8 @@ The manifest stores `data_dir` relative to itself, always exactly
 is checked with `--data-dir`.
 
 **Git-ignore guard.** Before writing anything, the writer asks git (`check-ignore`) whether
-each data file would be ignored, from the nearest existing directory of the root. A file
+each data file would be ignored, from the nearest existing directory above it whose real
+path is itself (so a symlinked `data/` cannot move the check outside the repo). A file
 that git would track is refused with a message naming it; run from the repo root or add
 `data/*` to `.gitignore`. Outside a work tree (or without git) the guard is skipped. When git
 cannot answer, the write is refused (fails closed). A `data/` that is a **symlink** is
@@ -175,34 +176,34 @@ uv run fc builders
 use the alias `football-core` in an activated shell. Parameter values are passed to the
 builder but never written to the manifest; secrets belong in environment variables.
 
-## Builders: how C4 and C5 plug in
+## Builders: how providers plug in
 
 A builder is `Callable[[BuildRequest], BuildResult]`. The built-in `parquet` builder makes one
-table per input parquet file. A provider module adds one line to `BUILTIN_BUILDERS`
-(`"statsbomb": "football_core.io.statsbomb:build_snapshot"`); `register_builder` adds one at
-runtime.
+table per input parquet file; the built-in `statsbomb` builder
+(`football_core.io.statsbomb:build_snapshot`, C4) syncs and loads the open-data cache. A
+provider module adds one line to `BUILTIN_BUILDERS`; `register_builder` adds one at runtime.
+A sketch of the StatsBomb builder (the real one also checks its params and logs skipped 360
+files):
 
 ```python
 def build_snapshot(request: BuildRequest) -> BuildResult:
-    (checkout,) = request.inputs  # the local open-data clone
-    shots, freeze_frames, files_read = load(checkout)
-    rev = git_revision(checkout)
-    if rev is not None and not rev.dirty:  # a clean clone: the commit pins it
-        source = source_from_git(OPEN_DATA, rev.sha)
-    else:  # downloaded or modified: pin the bytes
-        source = source_from_files(files_read, root=checkout, uri=OPEN_DATA, list_files=False)
+    (cache,) = request.inputs  # e.g. data/raw/statsbomb/open-data
+    commit = request.params.get("commit", OPEN_DATA_COMMIT)
+    data = load(sync(cache, commit=commit))  # every file was blob-checked against the commit
+    if not reconcile_goals(data.shots, data.matches).is_empty():
+        raise ValueError("goals do not reconcile with the score")  # no snapshot is written
     return BuildResult(
-        {"shots": shots, "freeze_frames": freeze_frames},
-        source,
-        sort_by={"shots": ("match_id", "period", "minute", "second")},  # chronological files
+        {"shots": data.shots, "freeze_frames": data.freeze_frames, "matches": data.matches},
+        source_from_git(OPEN_DATA_URL, commit),
+        sort_by={"shots": ("match_date", "competition_id", "season_id", "match_id")},
     )
 ```
 
 `sort_by` is optional: it sets the leading sort keys (identity or pre-shot columns only on
 `shots` / `freeze_frames`); every remaining column follows as a tie-breaker.
 
-`git_revision` gives a commit only when `--input` is the **clone root** (`.../open-data`);
-pointing it at `open-data/data/` silently takes the file-digest fallback. A git call that
+For a builder that reads a git clone, `git_revision` gives a commit only when the input is
+the **clone root**; a subfolder silently takes the file-digest fallback. A git call that
 times out (`GIT_TIMEOUT`, 60 s) also falls back, so the manifest's source changes while the
 data does not. A private source (WhoScored) uses `list_files=False`, and a `sql` source must
 pass `content_sha256=content_digest(...)` of the fetched rows.

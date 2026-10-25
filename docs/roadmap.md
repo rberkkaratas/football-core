@@ -16,8 +16,8 @@ model milestones, is in the `football-shot-models` roadmap.
 |---|---|---|---|
 | 1 · Data foundation ✅ | C3 | `schema` v1 | ✅ 47-column shot table and 6-column freeze-frame table, each column tagged with a leakage role. Synthetic frames validate; bad enums, out-of-bounds coordinates, wrong dtypes, missing columns and duplicate `shot_id` fail with messages naming the column and value (516 schema tests and doctests pass) |
 | | C6 | Snapshots + manifest CLI | ✅ `io.snapshot` and the `fc` CLI. A rerun on unchanged inputs writes byte-identical parquet files and manifest (also after shuffling or re-chunking the input rows and in a fresh process); `fc verify` exits 1 and names the file on a one-byte flip, append or truncation, a missing file and an extra file (635 snapshot tests pass) |
-| 2 · StatsBomb xG baseline | C4 | `io.statsbomb` | ~100k shots, zero schema violations, goals reconcile with scores |
-| | C7 | `viz` | Image tests pass for shot map and goal-mouth plot |
+| 2 · StatsBomb xG baseline ✅ | C4 | `io.statsbomb` | ✅ All 101,614 shots (101,227 Shot + 387 own goals) of 3,961 matches at the pinned open-data commit load with zero schema violations, plus 1,305,559 freeze-frame rows; goals reconcile with the score in every match (shoot-outs excluded). 418 of 426 matches with 360 files give visible areas; 8 upstream-defective files are named and skipped. Coordinates agree with kloppy to 1e-9 m in both boxes (x) and everywhere (y); elsewhere x differs by ≤ 0.57 m (kloppy's two extra x landmarks) |
+| | C7 | `viz` | ✅ Image tests (Agg, tolerance 0.5) pass for the shot map (marker area ∝ xG) and the front-on 7.32 × 2.44 m goal-mouth plot; the StatsBomb logo and attribution are added automatically and a missing logo fails before drawing |
 | 4 · WhoScored xG v1 | C5 | `io.whoscored` (CSV archive) | Duplicate match dropped; goals reconcile with metadata scores; fixtures cover q82/q28/q9/q214/q55 |
 
 ## Decisions

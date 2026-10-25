@@ -20,11 +20,13 @@ manifest it is about to commit.
 
 **Extension point.** A builder turns inputs into tables plus a ``Source``. Provider loaders
 add one ``"module:function"`` line to ``BUILTIN_BUILDERS``; ``register_builder`` adds one at
-runtime. The ``parquet`` builder ships now, so ``fc snapshot`` works on plain parquet files.
+runtime. Built in: ``parquet`` (plain parquet files) and ``statsbomb`` (StatsBomb open data,
+``football_core.io.statsbomb``).
 """
 
 from __future__ import annotations
 
+import errno
 import functools
 import hashlib
 import importlib
@@ -78,7 +80,10 @@ TABLE_PATTERN: Final[str] = r"^[a-z][a-z0-9_]{0,63}$"  # table names = file stem
 IGNORED_NAMES: Final[frozenset[str]] = frozenset({".DS_Store"})  # verify never reports these
 SORT_ROLES: Final[tuple[schema.Role, ...]] = ("identity", "pre_shot")  # allowed sort_by roles
 BUILTIN_BUILDERS: Final[Mapping[str, str]] = MappingProxyType(
-    {"parquet": "football_core.io.snapshot:build_from_parquet"}
+    {
+        "parquet": "football_core.io.snapshot:build_from_parquet",
+        "statsbomb": "football_core.io.statsbomb:build_snapshot",
+    }
 )
 DATE_RANGE: Final[tuple[str, str]] = ("0001-01-01", "9999-12-31")  # Python date's range
 GIT_TIMEOUT: Final[float] = 60.0  # seconds, per git call
@@ -517,6 +522,13 @@ def content_digest(items: Mapping[str, bytes]) -> str:
     return _digest(pairs)
 
 
+def _resolve(path: Path) -> Path:
+    try:
+        return path.resolve()
+    except RuntimeError:  # Python 3.12 raises RuntimeError on a symlink loop (3.13+: OSError)
+        raise OSError(errno.ELOOP, "symlink loop", str(path)) from None
+
+
 # --- Sources ----------------------------------------------------------------------------------
 
 
@@ -558,6 +570,8 @@ def source_from_files(
         breaks the ``InputFile`` rules.
     FileNotFoundError
         A path or the root does not exist.
+    OSError
+        ``ELOOP`` for a symlink loop.
 
     Examples
     --------
@@ -574,14 +588,14 @@ def source_from_files(
         raise TypeError("paths must be a sequence of paths, not a single path")
     if not paths:
         raise ValueError("source_from_files needs at least one path")
-    r = Path(root).resolve()
+    r = _resolve(Path(root))
     if not os.path.isdir(r):
         if not os.path.exists(r):
             raise FileNotFoundError(f"source root '{root}' does not exist")
         raise ValueError(f"source root '{root}' is not a directory")
     entries: dict[str, InputFile] = {}
     for raw in paths:
-        p = Path(raw).resolve()
+        p = _resolve(Path(raw))
         try:
             st = os.stat(p)
         except FileNotFoundError:
@@ -951,29 +965,37 @@ def _existing_anchor(path: Path) -> Path:
     return Path(path.anchor or ".")
 
 
-def _guard(r: Path, name: str, tables: Iterable[str]) -> None:
-    """Refuse data files that git would not ignore (fail closed when git cannot tell)."""
-    anchor = _existing_anchor(r)  # git -C on a missing directory looks like "no work tree"
+def _check_ignored(path: Path) -> None:
+    """Refuse a data path that git would not ignore (fail closed when git cannot tell)."""
+    # git -C on a missing directory looks like "no work tree", and so does one reached through a
+    # symlinked data/ that points outside the repo: anchor at the nearest real directory.
+    anchor = _existing_anchor(path.parent)
+    while os.path.realpath(anchor) != str(anchor) and anchor != anchor.parent:
+        anchor = _existing_anchor(anchor.parent)
     inside = _run_git(anchor, "rev-parse", "--is-inside-work-tree")
     if inside is None or inside.returncode != 0 or inside.stdout != "true\n":
         return
-    for table in sorted(tables):
-        p = r / DATA_SUBDIR / name / f"{table}.parquet"
-        # Exit code only: git C-quotes non-ASCII paths in its output.
-        ci = _run_git(anchor, "check-ignore", "-q", "--", str(p))
-        if ci is None:
-            raise ValueError(f"cannot check whether '{p}' is git-ignored (git did not answer)")
-        if ci.returncode == 0:
-            continue
-        if ci.returncode == 1:
-            raise ValueError(
-                f"data file '{p}' would not be git-ignored; add `data/*` to the repo's "
-                ".gitignore or run from the repo root (--root)"
-            )
-        first = next(iter(ci.stderr.splitlines()), "").strip() or "(no stderr)"
+    # Exit code only: git C-quotes non-ASCII paths in its output.
+    ci = _run_git(anchor, "check-ignore", "-q", "--", str(path))
+    if ci is None:
+        raise ValueError(f"cannot check whether '{path}' is git-ignored (git did not answer)")
+    if ci.returncode == 0:
+        return
+    if ci.returncode == 1:
         raise ValueError(
-            f"cannot check whether '{p}' is git-ignored (git exit {ci.returncode}): {first}"
+            f"data file '{path}' would not be git-ignored; add `data/*` to the repo's "
+            ".gitignore or run from the repo root (--root)"
         )
+    first = next(iter(ci.stderr.splitlines()), "").strip() or "(no stderr)"
+    raise ValueError(
+        f"cannot check whether '{path}' is git-ignored (git exit {ci.returncode}): {first}"
+    )
+
+
+def _guard(r: Path, name: str, tables: Iterable[str]) -> None:
+    """Refuse data files that git would not ignore, one ``_check_ignored`` per table file."""
+    for table in sorted(tables):
+        _check_ignored(r / DATA_SUBDIR / name / f"{table}.parquet")
 
 
 def _remove(path: Path) -> None:
@@ -1092,6 +1114,8 @@ def write_snapshot(
         Different data already holds the name and ``overwrite`` is False.
     ManifestError
         The existing manifest is unreadable and ``overwrite`` is False.
+    OSError
+        ``ELOOP`` for a symlink loop in ``root``, or any filesystem error while writing.
 
     Examples
     --------
@@ -1135,7 +1159,7 @@ def write_snapshot(
 
     # 4. The data must be git-ignored (still nothing written).
     base = Path(root)
-    _guard(base.resolve(), name, prepared)
+    _guard(_resolve(base), name, prepared)
 
     snapdir = base / DATA_SUBDIR
     final = snapdir / name
@@ -1425,6 +1449,8 @@ def load_snapshot(
 
     Raises
     ------
+    TypeError
+        ``tables`` is a single ``str``.
     ManifestError
         The manifest is missing, unreadable or invalid.
     SnapshotVerificationError
@@ -1444,6 +1470,8 @@ def load_snapshot(
     >>> loaded["t"]["a"].to_list()
     [1, 2]
     """
+    if isinstance(tables, str):
+        raise TypeError("tables must be a sequence of table names, not a single str")
     mpath = Path(manifest)
     m = read_manifest(mpath)
     known = {t.name: t for t in m.tables}
@@ -1959,10 +1987,12 @@ def build_from_parquet(request: BuildRequest) -> BuildResult:
     Raises
     ------
     ValueError
-        No inputs, any param, a non-parquet file, a directory without parquet files, a stem
-        that fails ``TABLE_PATTERN``, two inputs with the same stem.
+        No inputs, any param, a non-parquet file (by suffix or content), a directory without
+        parquet files, a stem that fails ``TABLE_PATTERN``, two inputs with the same stem.
     FileNotFoundError
         An input does not exist.
+    OSError
+        ``ELOOP`` for a symlink loop.
 
     Examples
     --------
@@ -1983,7 +2013,7 @@ def build_from_parquet(request: BuildRequest) -> BuildResult:
         )
     files: list[Path] = []
     for raw in request.inputs:
-        p = Path(raw).resolve()
+        p = _resolve(Path(raw))
         if os.path.isdir(p):
             found = sorted(c for c in p.iterdir() if c.suffix == ".parquet" and c.is_file())
             if not found:
@@ -2007,4 +2037,11 @@ def build_from_parquet(request: BuildRequest) -> BuildResult:
             raise ValueError(f"two inputs give table {f.stem!r}: '{stems[f.stem]}' and '{f}'")
         stems[f.stem] = f
     source = source_from_files(files, root=os.path.commonpath([str(f.parent) for f in files]))
-    return BuildResult({stem: pl.read_parquet(path) for stem, path in stems.items()}, source)
+    return BuildResult({stem: _read_parquet(path) for stem, path in stems.items()}, source)
+
+
+def _read_parquet(path: Path) -> pl.DataFrame:
+    try:
+        return pl.read_parquet(path)
+    except pl.exceptions.ComputeError as e:
+        raise ValueError(f"input '{path}' is not a readable parquet file: {e}") from None

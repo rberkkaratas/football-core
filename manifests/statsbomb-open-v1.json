@@ -1,0 +1,1637 @@
+{
+  "manifest_version": 1,
+  "name": "statsbomb-open-v1",
+  "builder": "statsbomb",
+  "schema_version": "1.0",
+  "data_dir": "../data/snapshots/statsbomb-open-v1",
+  "data_digest": "9b34e93fa3c8300f9d49d107a4fa92dfd4eed55d2cf72d8ba878afd37cc7d0ad",
+  "source": {
+    "kind": "git",
+    "uri": "https://github.com/statsbomb/open-data",
+    "revision": "4b73468fc5b0f1950f9f66fada70ad3a4f9327cb",
+    "content_sha256": null,
+    "files": []
+  },
+  "tables": [
+    {
+      "name": "freeze_frames",
+      "file": "freeze_frames.parquet",
+      "rows": 1305559,
+      "matches": null,
+      "schema": "freeze_frames",
+      "sort_by": [
+        "shot_id"
+      ],
+      "columns": [
+        {
+          "name": "shot_id",
+          "dtype": "String"
+        },
+        {
+          "name": "player_id",
+          "dtype": "String"
+        },
+        {
+          "name": "is_teammate",
+          "dtype": "Boolean"
+        },
+        {
+          "name": "is_keeper",
+          "dtype": "Boolean"
+        },
+        {
+          "name": "x",
+          "dtype": "Float64"
+        },
+        {
+          "name": "y",
+          "dtype": "Float64"
+        }
+      ],
+      "groups": null
+    },
+    {
+      "name": "matches",
+      "file": "matches.parquet",
+      "rows": 3961,
+      "matches": 3961,
+      "schema": null,
+      "sort_by": [
+        "match_date",
+        "match_id"
+      ],
+      "columns": [
+        {
+          "name": "match_id",
+          "dtype": "String"
+        },
+        {
+          "name": "competition_id",
+          "dtype": "String"
+        },
+        {
+          "name": "season_id",
+          "dtype": "String"
+        },
+        {
+          "name": "home_team_id",
+          "dtype": "String"
+        },
+        {
+          "name": "away_team_id",
+          "dtype": "String"
+        },
+        {
+          "name": "competition_name",
+          "dtype": "String"
+        },
+        {
+          "name": "season_name",
+          "dtype": "String"
+        },
+        {
+          "name": "gender",
+          "dtype": "String"
+        },
+        {
+          "name": "match_date",
+          "dtype": "Date"
+        },
+        {
+          "name": "home_score",
+          "dtype": "Int16"
+        },
+        {
+          "name": "away_score",
+          "dtype": "Int16"
+        },
+        {
+          "name": "has_360",
+          "dtype": "Boolean"
+        }
+      ],
+      "groups": [
+        {
+          "competition_id": "sb:11",
+          "season_id": "sb:1",
+          "rows": 36,
+          "matches": 36,
+          "first_date": "2017-08-20",
+          "last_date": "2018-05-20"
+        },
+        {
+          "competition_id": "sb:11",
+          "season_id": "sb:2",
+          "rows": 34,
+          "matches": 34,
+          "first_date": "2016-08-20",
+          "last_date": "2017-05-21"
+        },
+        {
+          "competition_id": "sb:11",
+          "season_id": "sb:21",
+          "rows": 35,
+          "matches": 35,
+          "first_date": "2009-09-12",
+          "last_date": "2010-05-16"
+        },
+        {
+          "competition_id": "sb:11",
+          "season_id": "sb:22",
+          "rows": 33,
+          "matches": 33,
+          "first_date": "2010-08-29",
+          "last_date": "2011-05-11"
+        },
+        {
+          "competition_id": "sb:11",
+          "season_id": "sb:23",
+          "rows": 37,
+          "matches": 37,
+          "first_date": "2011-08-29",
+          "last_date": "2012-05-12"
+        },
+        {
+          "competition_id": "sb:11",
+          "season_id": "sb:24",
+          "rows": 32,
+          "matches": 32,
+          "first_date": "2012-08-19",
+          "last_date": "2013-05-12"
+        },
+        {
+          "competition_id": "sb:11",
+          "season_id": "sb:25",
+          "rows": 31,
+          "matches": 31,
+          "first_date": "2013-08-18",
+          "last_date": "2014-05-17"
+        },
+        {
+          "competition_id": "sb:11",
+          "season_id": "sb:26",
+          "rows": 38,
+          "matches": 38,
+          "first_date": "2014-08-24",
+          "last_date": "2015-05-23"
+        },
+        {
+          "competition_id": "sb:11",
+          "season_id": "sb:27",
+          "rows": 380,
+          "matches": 380,
+          "first_date": "2015-08-21",
+          "last_date": "2016-05-15"
+        },
+        {
+          "competition_id": "sb:11",
+          "season_id": "sb:278",
+          "rows": 1,
+          "matches": 1,
+          "first_date": "1974-02-17",
+          "last_date": "1974-02-17"
+        },
+        {
+          "competition_id": "sb:11",
+          "season_id": "sb:37",
+          "rows": 7,
+          "matches": 7,
+          "first_date": "2004-10-16",
+          "last_date": "2005-05-01"
+        },
+        {
+          "competition_id": "sb:11",
+          "season_id": "sb:38",
+          "rows": 17,
+          "matches": 17,
+          "first_date": "2005-10-01",
+          "last_date": "2006-02-25"
+        },
+        {
+          "competition_id": "sb:11",
+          "season_id": "sb:39",
+          "rows": 26,
+          "matches": 26,
+          "first_date": "2006-08-28",
+          "last_date": "2007-06-17"
+        },
+        {
+          "competition_id": "sb:11",
+          "season_id": "sb:4",
+          "rows": 34,
+          "matches": 34,
+          "first_date": "2018-08-18",
+          "last_date": "2019-05-19"
+        },
+        {
+          "competition_id": "sb:11",
+          "season_id": "sb:40",
+          "rows": 27,
+          "matches": 27,
+          "first_date": "2007-08-26",
+          "last_date": "2008-05-17"
+        },
+        {
+          "competition_id": "sb:11",
+          "season_id": "sb:41",
+          "rows": 31,
+          "matches": 31,
+          "first_date": "2008-08-31",
+          "last_date": "2009-05-10"
+        },
+        {
+          "competition_id": "sb:11",
+          "season_id": "sb:42",
+          "rows": 33,
+          "matches": 33,
+          "first_date": "2019-09-21",
+          "last_date": "2020-07-19"
+        },
+        {
+          "competition_id": "sb:11",
+          "season_id": "sb:90",
+          "rows": 35,
+          "matches": 35,
+          "first_date": "2020-09-27",
+          "last_date": "2021-05-16"
+        },
+        {
+          "competition_id": "sb:116",
+          "season_id": "sb:68",
+          "rows": 1,
+          "matches": 1,
+          "first_date": "1977-08-28",
+          "last_date": "1977-08-28"
+        },
+        {
+          "competition_id": "sb:12",
+          "season_id": "sb:27",
+          "rows": 380,
+          "matches": 380,
+          "first_date": "2015-08-22",
+          "last_date": "2016-05-15"
+        },
+        {
+          "competition_id": "sb:12",
+          "season_id": "sb:86",
+          "rows": 1,
+          "matches": 1,
+          "first_date": "1986-11-09",
+          "last_date": "1986-11-09"
+        },
+        {
+          "competition_id": "sb:1238",
+          "season_id": "sb:108",
+          "rows": 115,
+          "matches": 115,
+          "first_date": "2021-11-19",
+          "last_date": "2022-03-20"
+        },
+        {
+          "competition_id": "sb:1267",
+          "season_id": "sb:107",
+          "rows": 52,
+          "matches": 52,
+          "first_date": "2024-01-13",
+          "last_date": "2024-02-11"
+        },
+        {
+          "competition_id": "sb:131",
+          "season_id": "sb:281",
+          "rows": 130,
+          "matches": 130,
+          "first_date": "2023-09-16",
+          "last_date": "2024-05-19"
+        },
+        {
+          "competition_id": "sb:135",
+          "season_id": "sb:281",
+          "rows": 132,
+          "matches": 132,
+          "first_date": "2023-09-15",
+          "last_date": "2024-05-20"
+        },
+        {
+          "competition_id": "sb:1470",
+          "season_id": "sb:274",
+          "rows": 1,
+          "matches": 1,
+          "first_date": "1979-09-07",
+          "last_date": "1979-09-07"
+        },
+        {
+          "competition_id": "sb:16",
+          "season_id": "sb:1",
+          "rows": 1,
+          "matches": 1,
+          "first_date": "2018-05-26",
+          "last_date": "2018-05-26"
+        },
+        {
+          "competition_id": "sb:16",
+          "season_id": "sb:2",
+          "rows": 1,
+          "matches": 1,
+          "first_date": "2017-06-03",
+          "last_date": "2017-06-03"
+        },
+        {
+          "competition_id": "sb:16",
+          "season_id": "sb:21",
+          "rows": 1,
+          "matches": 1,
+          "first_date": "2010-05-22",
+          "last_date": "2010-05-22"
+        },
+        {
+          "competition_id": "sb:16",
+          "season_id": "sb:22",
+          "rows": 1,
+          "matches": 1,
+          "first_date": "2011-05-28",
+          "last_date": "2011-05-28"
+        },
+        {
+          "competition_id": "sb:16",
+          "season_id": "sb:23",
+          "rows": 1,
+          "matches": 1,
+          "first_date": "2012-05-19",
+          "last_date": "2012-05-19"
+        },
+        {
+          "competition_id": "sb:16",
+          "season_id": "sb:24",
+          "rows": 1,
+          "matches": 1,
+          "first_date": "2013-05-25",
+          "last_date": "2013-05-25"
+        },
+        {
+          "competition_id": "sb:16",
+          "season_id": "sb:25",
+          "rows": 1,
+          "matches": 1,
+          "first_date": "2014-05-24",
+          "last_date": "2014-05-24"
+        },
+        {
+          "competition_id": "sb:16",
+          "season_id": "sb:26",
+          "rows": 1,
+          "matches": 1,
+          "first_date": "2015-06-06",
+          "last_date": "2015-06-06"
+        },
+        {
+          "competition_id": "sb:16",
+          "season_id": "sb:27",
+          "rows": 1,
+          "matches": 1,
+          "first_date": "2016-05-28",
+          "last_date": "2016-05-28"
+        },
+        {
+          "competition_id": "sb:16",
+          "season_id": "sb:276",
+          "rows": 1,
+          "matches": 1,
+          "first_date": "1971-06-02",
+          "last_date": "1971-06-02"
+        },
+        {
+          "competition_id": "sb:16",
+          "season_id": "sb:277",
+          "rows": 1,
+          "matches": 1,
+          "first_date": "1973-05-30",
+          "last_date": "1973-05-30"
+        },
+        {
+          "competition_id": "sb:16",
+          "season_id": "sb:37",
+          "rows": 1,
+          "matches": 1,
+          "first_date": "2005-05-25",
+          "last_date": "2005-05-25"
+        },
+        {
+          "competition_id": "sb:16",
+          "season_id": "sb:39",
+          "rows": 1,
+          "matches": 1,
+          "first_date": "2007-05-23",
+          "last_date": "2007-05-23"
+        },
+        {
+          "competition_id": "sb:16",
+          "season_id": "sb:4",
+          "rows": 1,
+          "matches": 1,
+          "first_date": "2019-06-01",
+          "last_date": "2019-06-01"
+        },
+        {
+          "competition_id": "sb:16",
+          "season_id": "sb:41",
+          "rows": 1,
+          "matches": 1,
+          "first_date": "2009-05-27",
+          "last_date": "2009-05-27"
+        },
+        {
+          "competition_id": "sb:16",
+          "season_id": "sb:44",
+          "rows": 1,
+          "matches": 1,
+          "first_date": "2004-05-26",
+          "last_date": "2004-05-26"
+        },
+        {
+          "competition_id": "sb:16",
+          "season_id": "sb:71",
+          "rows": 1,
+          "matches": 1,
+          "first_date": "1972-05-31",
+          "last_date": "1972-05-31"
+        },
+        {
+          "competition_id": "sb:16",
+          "season_id": "sb:76",
+          "rows": 1,
+          "matches": 1,
+          "first_date": "1999-11-23",
+          "last_date": "1999-11-23"
+        },
+        {
+          "competition_id": "sb:182",
+          "season_id": "sb:281",
+          "rows": 240,
+          "matches": 240,
+          "first_date": "2023-09-15",
+          "last_date": "2024-06-16"
+        },
+        {
+          "competition_id": "sb:2",
+          "season_id": "sb:27",
+          "rows": 380,
+          "matches": 380,
+          "first_date": "2015-08-08",
+          "last_date": "2016-05-17"
+        },
+        {
+          "competition_id": "sb:2",
+          "season_id": "sb:44",
+          "rows": 38,
+          "matches": 38,
+          "first_date": "2003-08-16",
+          "last_date": "2004-05-15"
+        },
+        {
+          "competition_id": "sb:223",
+          "season_id": "sb:282",
+          "rows": 32,
+          "matches": 32,
+          "first_date": "2024-06-21",
+          "last_date": "2024-07-15"
+        },
+        {
+          "competition_id": "sb:35",
+          "season_id": "sb:75",
+          "rows": 3,
+          "matches": 3,
+          "first_date": "1989-03-15",
+          "last_date": "1989-05-03"
+        },
+        {
+          "competition_id": "sb:37",
+          "season_id": "sb:281",
+          "rows": 132,
+          "matches": 132,
+          "first_date": "2023-10-01",
+          "last_date": "2024-05-18"
+        },
+        {
+          "competition_id": "sb:37",
+          "season_id": "sb:4",
+          "rows": 107,
+          "matches": 107,
+          "first_date": "2018-09-09",
+          "last_date": "2019-05-11"
+        },
+        {
+          "competition_id": "sb:37",
+          "season_id": "sb:42",
+          "rows": 87,
+          "matches": 87,
+          "first_date": "2019-09-07",
+          "last_date": "2020-02-23"
+        },
+        {
+          "competition_id": "sb:37",
+          "season_id": "sb:90",
+          "rows": 131,
+          "matches": 131,
+          "first_date": "2020-09-05",
+          "last_date": "2021-05-09"
+        },
+        {
+          "competition_id": "sb:43",
+          "season_id": "sb:106",
+          "rows": 64,
+          "matches": 64,
+          "first_date": "2022-11-20",
+          "last_date": "2022-12-18"
+        },
+        {
+          "competition_id": "sb:43",
+          "season_id": "sb:269",
+          "rows": 2,
+          "matches": 2,
+          "first_date": "1958-06-24",
+          "last_date": "1958-06-29"
+        },
+        {
+          "competition_id": "sb:43",
+          "season_id": "sb:270",
+          "rows": 1,
+          "matches": 1,
+          "first_date": "1962-05-30",
+          "last_date": "1962-05-30"
+        },
+        {
+          "competition_id": "sb:43",
+          "season_id": "sb:272",
+          "rows": 6,
+          "matches": 6,
+          "first_date": "1970-06-03",
+          "last_date": "1970-06-21"
+        },
+        {
+          "competition_id": "sb:43",
+          "season_id": "sb:3",
+          "rows": 64,
+          "matches": 64,
+          "first_date": "2018-06-14",
+          "last_date": "2018-07-15"
+        },
+        {
+          "competition_id": "sb:43",
+          "season_id": "sb:51",
+          "rows": 6,
+          "matches": 6,
+          "first_date": "1974-06-19",
+          "last_date": "1974-07-07"
+        },
+        {
+          "competition_id": "sb:43",
+          "season_id": "sb:54",
+          "rows": 3,
+          "matches": 3,
+          "first_date": "1986-06-22",
+          "last_date": "1986-06-29"
+        },
+        {
+          "competition_id": "sb:43",
+          "season_id": "sb:55",
+          "rows": 1,
+          "matches": 1,
+          "first_date": "1990-06-24",
+          "last_date": "1990-06-24"
+        },
+        {
+          "competition_id": "sb:44",
+          "season_id": "sb:107",
+          "rows": 6,
+          "matches": 6,
+          "first_date": "2023-08-27",
+          "last_date": "2023-10-22"
+        },
+        {
+          "competition_id": "sb:49",
+          "season_id": "sb:107",
+          "rows": 137,
+          "matches": 137,
+          "first_date": "2023-03-25",
+          "last_date": "2023-11-12"
+        },
+        {
+          "competition_id": "sb:49",
+          "season_id": "sb:3",
+          "rows": 36,
+          "matches": 36,
+          "first_date": "2018-04-15",
+          "last_date": "2018-08-12"
+        },
+        {
+          "competition_id": "sb:53",
+          "season_id": "sb:106",
+          "rows": 31,
+          "matches": 31,
+          "first_date": "2022-07-06",
+          "last_date": "2022-07-31"
+        },
+        {
+          "competition_id": "sb:53",
+          "season_id": "sb:315",
+          "rows": 31,
+          "matches": 31,
+          "first_date": "2025-07-02",
+          "last_date": "2025-07-27"
+        },
+        {
+          "competition_id": "sb:55",
+          "season_id": "sb:282",
+          "rows": 51,
+          "matches": 51,
+          "first_date": "2024-06-14",
+          "last_date": "2024-07-14"
+        },
+        {
+          "competition_id": "sb:55",
+          "season_id": "sb:43",
+          "rows": 51,
+          "matches": 51,
+          "first_date": "2021-06-11",
+          "last_date": "2021-07-11"
+        },
+        {
+          "competition_id": "sb:7",
+          "season_id": "sb:108",
+          "rows": 26,
+          "matches": 26,
+          "first_date": "2021-08-29",
+          "last_date": "2022-05-21"
+        },
+        {
+          "competition_id": "sb:7",
+          "season_id": "sb:235",
+          "rows": 32,
+          "matches": 32,
+          "first_date": "2022-08-06",
+          "last_date": "2023-06-03"
+        },
+        {
+          "competition_id": "sb:7",
+          "season_id": "sb:27",
+          "rows": 377,
+          "matches": 377,
+          "first_date": "2015-08-07",
+          "last_date": "2016-05-14"
+        },
+        {
+          "competition_id": "sb:72",
+          "season_id": "sb:107",
+          "rows": 64,
+          "matches": 64,
+          "first_date": "2023-07-20",
+          "last_date": "2023-08-20"
+        },
+        {
+          "competition_id": "sb:72",
+          "season_id": "sb:30",
+          "rows": 52,
+          "matches": 52,
+          "first_date": "2019-06-07",
+          "last_date": "2019-07-07"
+        },
+        {
+          "competition_id": "sb:81",
+          "season_id": "sb:275",
+          "rows": 1,
+          "matches": 1,
+          "first_date": "1981-04-10",
+          "last_date": "1981-04-10"
+        },
+        {
+          "competition_id": "sb:81",
+          "season_id": "sb:48",
+          "rows": 1,
+          "matches": 1,
+          "first_date": "1997-10-25",
+          "last_date": "1997-10-25"
+        },
+        {
+          "competition_id": "sb:87",
+          "season_id": "sb:268",
+          "rows": 1,
+          "matches": 1,
+          "first_date": "1983-06-04",
+          "last_date": "1983-06-04"
+        },
+        {
+          "competition_id": "sb:87",
+          "season_id": "sb:279",
+          "rows": 1,
+          "matches": 1,
+          "first_date": "1978-04-19",
+          "last_date": "1978-04-19"
+        },
+        {
+          "competition_id": "sb:87",
+          "season_id": "sb:84",
+          "rows": 1,
+          "matches": 1,
+          "first_date": "1984-05-05",
+          "last_date": "1984-05-05"
+        },
+        {
+          "competition_id": "sb:9",
+          "season_id": "sb:27",
+          "rows": 34,
+          "matches": 34,
+          "first_date": "2015-08-15",
+          "last_date": "2016-05-14"
+        },
+        {
+          "competition_id": "sb:9",
+          "season_id": "sb:281",
+          "rows": 34,
+          "matches": 34,
+          "first_date": "2023-08-19",
+          "last_date": "2024-05-18"
+        }
+      ]
+    },
+    {
+      "name": "shots",
+      "file": "shots.parquet",
+      "rows": 101614,
+      "matches": 3961,
+      "schema": "shots",
+      "sort_by": [
+        "match_date",
+        "competition_id",
+        "season_id",
+        "match_id",
+        "period",
+        "seconds_in_period",
+        "shot_id"
+      ],
+      "columns": [
+        {
+          "name": "shot_id",
+          "dtype": "String"
+        },
+        {
+          "name": "provider",
+          "dtype": "Enum(categories=['statsbomb', 'whoscored'])"
+        },
+        {
+          "name": "competition_id",
+          "dtype": "String"
+        },
+        {
+          "name": "season_id",
+          "dtype": "String"
+        },
+        {
+          "name": "match_id",
+          "dtype": "String"
+        },
+        {
+          "name": "match_date",
+          "dtype": "Date"
+        },
+        {
+          "name": "team_id",
+          "dtype": "String"
+        },
+        {
+          "name": "opponent_team_id",
+          "dtype": "String"
+        },
+        {
+          "name": "player_id",
+          "dtype": "String"
+        },
+        {
+          "name": "is_home",
+          "dtype": "Boolean"
+        },
+        {
+          "name": "period",
+          "dtype": "Int8"
+        },
+        {
+          "name": "minute",
+          "dtype": "Int16"
+        },
+        {
+          "name": "second",
+          "dtype": "Int8"
+        },
+        {
+          "name": "seconds_in_period",
+          "dtype": "Float64"
+        },
+        {
+          "name": "x",
+          "dtype": "Float64"
+        },
+        {
+          "name": "y",
+          "dtype": "Float64"
+        },
+        {
+          "name": "end_x",
+          "dtype": "Float64"
+        },
+        {
+          "name": "end_y",
+          "dtype": "Float64"
+        },
+        {
+          "name": "end_z",
+          "dtype": "Float64"
+        },
+        {
+          "name": "goal_y",
+          "dtype": "Float64"
+        },
+        {
+          "name": "goal_z",
+          "dtype": "Float64"
+        },
+        {
+          "name": "gk_x",
+          "dtype": "Float64"
+        },
+        {
+          "name": "gk_y",
+          "dtype": "Float64"
+        },
+        {
+          "name": "distance_m",
+          "dtype": "Float64"
+        },
+        {
+          "name": "angle_rad",
+          "dtype": "Float64"
+        },
+        {
+          "name": "visible_area",
+          "dtype": "List(Array(Float64, shape=(2,)))"
+        },
+        {
+          "name": "body_part",
+          "dtype": "Enum(categories=['right_foot', 'left_foot', 'head', 'other'])"
+        },
+        {
+          "name": "situation",
+          "dtype": "Enum(categories=['open_play', 'fast_break', 'from_corner', 'from_free_kick', 'from_throw_in', 'direct_free_kick', 'direct_corner', 'penalty', 'kick_off'])"
+        },
+        {
+          "name": "assist_type",
+          "dtype": "Enum(categories=['none', 'pass', 'cross', 'through_ball', 'cutback'])"
+        },
+        {
+          "name": "technique",
+          "dtype": "Enum(categories=['normal', 'volley', 'half_volley', 'lob', 'backheel', 'diving_header', 'overhead_kick'])"
+        },
+        {
+          "name": "outcome",
+          "dtype": "Enum(categories=['goal', 'saved', 'blocked', 'post', 'off_target'])"
+        },
+        {
+          "name": "is_goal",
+          "dtype": "Boolean"
+        },
+        {
+          "name": "is_own_goal",
+          "dtype": "Boolean"
+        },
+        {
+          "name": "is_penalty",
+          "dtype": "Boolean"
+        },
+        {
+          "name": "on_target",
+          "dtype": "Boolean"
+        },
+        {
+          "name": "first_time",
+          "dtype": "Boolean"
+        },
+        {
+          "name": "follows_dribble",
+          "dtype": "Boolean"
+        },
+        {
+          "name": "open_goal",
+          "dtype": "Boolean"
+        },
+        {
+          "name": "one_on_one",
+          "dtype": "Boolean"
+        },
+        {
+          "name": "big_chance",
+          "dtype": "Boolean"
+        },
+        {
+          "name": "deflected",
+          "dtype": "Boolean"
+        },
+        {
+          "name": "provider_xg",
+          "dtype": "Float64"
+        },
+        {
+          "name": "provider_psxg",
+          "dtype": "Float64"
+        },
+        {
+          "name": "assist_event_id",
+          "dtype": "String"
+        },
+        {
+          "name": "raw_type",
+          "dtype": "String"
+        },
+        {
+          "name": "raw_qualifiers",
+          "dtype": "String"
+        },
+        {
+          "name": "schema_version",
+          "dtype": "String"
+        }
+      ],
+      "groups": [
+        {
+          "competition_id": "sb:11",
+          "season_id": "sb:1",
+          "rows": 974,
+          "matches": 36,
+          "first_date": "2017-08-20",
+          "last_date": "2018-05-20"
+        },
+        {
+          "competition_id": "sb:11",
+          "season_id": "sb:2",
+          "rows": 885,
+          "matches": 34,
+          "first_date": "2016-08-20",
+          "last_date": "2017-05-21"
+        },
+        {
+          "competition_id": "sb:11",
+          "season_id": "sb:21",
+          "rows": 848,
+          "matches": 35,
+          "first_date": "2009-09-12",
+          "last_date": "2010-05-16"
+        },
+        {
+          "competition_id": "sb:11",
+          "season_id": "sb:22",
+          "rows": 740,
+          "matches": 33,
+          "first_date": "2010-08-29",
+          "last_date": "2011-05-11"
+        },
+        {
+          "competition_id": "sb:11",
+          "season_id": "sb:23",
+          "rows": 878,
+          "matches": 37,
+          "first_date": "2011-08-29",
+          "last_date": "2012-05-12"
+        },
+        {
+          "competition_id": "sb:11",
+          "season_id": "sb:24",
+          "rows": 725,
+          "matches": 32,
+          "first_date": "2012-08-19",
+          "last_date": "2013-05-12"
+        },
+        {
+          "competition_id": "sb:11",
+          "season_id": "sb:25",
+          "rows": 815,
+          "matches": 31,
+          "first_date": "2013-08-18",
+          "last_date": "2014-05-17"
+        },
+        {
+          "competition_id": "sb:11",
+          "season_id": "sb:26",
+          "rows": 935,
+          "matches": 38,
+          "first_date": "2014-08-24",
+          "last_date": "2015-05-23"
+        },
+        {
+          "competition_id": "sb:11",
+          "season_id": "sb:27",
+          "rows": 9197,
+          "matches": 380,
+          "first_date": "2015-08-21",
+          "last_date": "2016-05-15"
+        },
+        {
+          "competition_id": "sb:11",
+          "season_id": "sb:278",
+          "rows": 28,
+          "matches": 1,
+          "first_date": "1974-02-17",
+          "last_date": "1974-02-17"
+        },
+        {
+          "competition_id": "sb:11",
+          "season_id": "sb:37",
+          "rows": 158,
+          "matches": 7,
+          "first_date": "2004-10-16",
+          "last_date": "2005-05-01"
+        },
+        {
+          "competition_id": "sb:11",
+          "season_id": "sb:38",
+          "rows": 436,
+          "matches": 17,
+          "first_date": "2005-10-01",
+          "last_date": "2006-02-25"
+        },
+        {
+          "competition_id": "sb:11",
+          "season_id": "sb:39",
+          "rows": 683,
+          "matches": 26,
+          "first_date": "2006-08-28",
+          "last_date": "2007-06-17"
+        },
+        {
+          "competition_id": "sb:11",
+          "season_id": "sb:4",
+          "rows": 890,
+          "matches": 34,
+          "first_date": "2018-08-18",
+          "last_date": "2019-05-19"
+        },
+        {
+          "competition_id": "sb:11",
+          "season_id": "sb:40",
+          "rows": 700,
+          "matches": 27,
+          "first_date": "2007-08-26",
+          "last_date": "2008-05-17"
+        },
+        {
+          "competition_id": "sb:11",
+          "season_id": "sb:41",
+          "rows": 768,
+          "matches": 31,
+          "first_date": "2008-08-31",
+          "last_date": "2009-05-10"
+        },
+        {
+          "competition_id": "sb:11",
+          "season_id": "sb:42",
+          "rows": 754,
+          "matches": 33,
+          "first_date": "2019-09-21",
+          "last_date": "2020-07-19"
+        },
+        {
+          "competition_id": "sb:11",
+          "season_id": "sb:90",
+          "rows": 846,
+          "matches": 35,
+          "first_date": "2020-09-27",
+          "last_date": "2021-05-16"
+        },
+        {
+          "competition_id": "sb:116",
+          "season_id": "sb:68",
+          "rows": 50,
+          "matches": 1,
+          "first_date": "1977-08-28",
+          "last_date": "1977-08-28"
+        },
+        {
+          "competition_id": "sb:12",
+          "season_id": "sb:27",
+          "rows": 10026,
+          "matches": 380,
+          "first_date": "2015-08-22",
+          "last_date": "2016-05-15"
+        },
+        {
+          "competition_id": "sb:12",
+          "season_id": "sb:86",
+          "rows": 35,
+          "matches": 1,
+          "first_date": "1986-11-09",
+          "last_date": "1986-11-09"
+        },
+        {
+          "competition_id": "sb:1238",
+          "season_id": "sb:108",
+          "rows": 3108,
+          "matches": 115,
+          "first_date": "2021-11-19",
+          "last_date": "2022-03-20"
+        },
+        {
+          "competition_id": "sb:1267",
+          "season_id": "sb:107",
+          "rows": 1248,
+          "matches": 52,
+          "first_date": "2024-01-13",
+          "last_date": "2024-02-11"
+        },
+        {
+          "competition_id": "sb:131",
+          "season_id": "sb:281",
+          "rows": 3747,
+          "matches": 130,
+          "first_date": "2023-09-16",
+          "last_date": "2024-05-19"
+        },
+        {
+          "competition_id": "sb:135",
+          "season_id": "sb:281",
+          "rows": 3315,
+          "matches": 132,
+          "first_date": "2023-09-15",
+          "last_date": "2024-05-20"
+        },
+        {
+          "competition_id": "sb:1470",
+          "season_id": "sb:274",
+          "rows": 30,
+          "matches": 1,
+          "first_date": "1979-09-07",
+          "last_date": "1979-09-07"
+        },
+        {
+          "competition_id": "sb:16",
+          "season_id": "sb:1",
+          "rows": 28,
+          "matches": 1,
+          "first_date": "2018-05-26",
+          "last_date": "2018-05-26"
+        },
+        {
+          "competition_id": "sb:16",
+          "season_id": "sb:2",
+          "rows": 27,
+          "matches": 1,
+          "first_date": "2017-06-03",
+          "last_date": "2017-06-03"
+        },
+        {
+          "competition_id": "sb:16",
+          "season_id": "sb:21",
+          "rows": 34,
+          "matches": 1,
+          "first_date": "2010-05-22",
+          "last_date": "2010-05-22"
+        },
+        {
+          "competition_id": "sb:16",
+          "season_id": "sb:22",
+          "rows": 26,
+          "matches": 1,
+          "first_date": "2011-05-28",
+          "last_date": "2011-05-28"
+        },
+        {
+          "competition_id": "sb:16",
+          "season_id": "sb:23",
+          "rows": 59,
+          "matches": 1,
+          "first_date": "2012-05-19",
+          "last_date": "2012-05-19"
+        },
+        {
+          "competition_id": "sb:16",
+          "season_id": "sb:24",
+          "rows": 30,
+          "matches": 1,
+          "first_date": "2013-05-25",
+          "last_date": "2013-05-25"
+        },
+        {
+          "competition_id": "sb:16",
+          "season_id": "sb:25",
+          "rows": 32,
+          "matches": 1,
+          "first_date": "2014-05-24",
+          "last_date": "2014-05-24"
+        },
+        {
+          "competition_id": "sb:16",
+          "season_id": "sb:26",
+          "rows": 32,
+          "matches": 1,
+          "first_date": "2015-06-06",
+          "last_date": "2015-06-06"
+        },
+        {
+          "competition_id": "sb:16",
+          "season_id": "sb:27",
+          "rows": 53,
+          "matches": 1,
+          "first_date": "2016-05-28",
+          "last_date": "2016-05-28"
+        },
+        {
+          "competition_id": "sb:16",
+          "season_id": "sb:276",
+          "rows": 34,
+          "matches": 1,
+          "first_date": "1971-06-02",
+          "last_date": "1971-06-02"
+        },
+        {
+          "competition_id": "sb:16",
+          "season_id": "sb:277",
+          "rows": 42,
+          "matches": 1,
+          "first_date": "1973-05-30",
+          "last_date": "1973-05-30"
+        },
+        {
+          "competition_id": "sb:16",
+          "season_id": "sb:37",
+          "rows": 49,
+          "matches": 1,
+          "first_date": "2005-05-25",
+          "last_date": "2005-05-25"
+        },
+        {
+          "competition_id": "sb:16",
+          "season_id": "sb:39",
+          "rows": 20,
+          "matches": 1,
+          "first_date": "2007-05-23",
+          "last_date": "2007-05-23"
+        },
+        {
+          "competition_id": "sb:16",
+          "season_id": "sb:4",
+          "rows": 30,
+          "matches": 1,
+          "first_date": "2019-06-01",
+          "last_date": "2019-06-01"
+        },
+        {
+          "competition_id": "sb:16",
+          "season_id": "sb:41",
+          "rows": 23,
+          "matches": 1,
+          "first_date": "2009-05-27",
+          "last_date": "2009-05-27"
+        },
+        {
+          "competition_id": "sb:16",
+          "season_id": "sb:44",
+          "rows": 13,
+          "matches": 1,
+          "first_date": "2004-05-26",
+          "last_date": "2004-05-26"
+        },
+        {
+          "competition_id": "sb:16",
+          "season_id": "sb:71",
+          "rows": 35,
+          "matches": 1,
+          "first_date": "1972-05-31",
+          "last_date": "1972-05-31"
+        },
+        {
+          "competition_id": "sb:16",
+          "season_id": "sb:76",
+          "rows": 27,
+          "matches": 1,
+          "first_date": "1999-11-23",
+          "last_date": "1999-11-23"
+        },
+        {
+          "competition_id": "sb:182",
+          "season_id": "sb:281",
+          "rows": 6181,
+          "matches": 240,
+          "first_date": "2023-09-15",
+          "last_date": "2024-06-16"
+        },
+        {
+          "competition_id": "sb:2",
+          "season_id": "sb:27",
+          "rows": 9946,
+          "matches": 380,
+          "first_date": "2015-08-08",
+          "last_date": "2016-05-17"
+        },
+        {
+          "competition_id": "sb:2",
+          "season_id": "sb:44",
+          "rows": 934,
+          "matches": 38,
+          "first_date": "2003-08-16",
+          "last_date": "2004-05-15"
+        },
+        {
+          "competition_id": "sb:223",
+          "season_id": "sb:282",
+          "rows": 791,
+          "matches": 32,
+          "first_date": "2024-06-21",
+          "last_date": "2024-07-15"
+        },
+        {
+          "competition_id": "sb:35",
+          "season_id": "sb:75",
+          "rows": 89,
+          "matches": 3,
+          "first_date": "1989-03-15",
+          "last_date": "1989-05-03"
+        },
+        {
+          "competition_id": "sb:37",
+          "season_id": "sb:281",
+          "rows": 3546,
+          "matches": 132,
+          "first_date": "2023-10-01",
+          "last_date": "2024-05-18"
+        },
+        {
+          "competition_id": "sb:37",
+          "season_id": "sb:4",
+          "rows": 2829,
+          "matches": 107,
+          "first_date": "2018-09-09",
+          "last_date": "2019-05-11"
+        },
+        {
+          "competition_id": "sb:37",
+          "season_id": "sb:42",
+          "rows": 2230,
+          "matches": 87,
+          "first_date": "2019-09-07",
+          "last_date": "2020-02-23"
+        },
+        {
+          "competition_id": "sb:37",
+          "season_id": "sb:90",
+          "rows": 3265,
+          "matches": 131,
+          "first_date": "2020-09-05",
+          "last_date": "2021-05-09"
+        },
+        {
+          "competition_id": "sb:43",
+          "season_id": "sb:106",
+          "rows": 1497,
+          "matches": 64,
+          "first_date": "2022-11-20",
+          "last_date": "2022-12-18"
+        },
+        {
+          "competition_id": "sb:43",
+          "season_id": "sb:269",
+          "rows": 88,
+          "matches": 2,
+          "first_date": "1958-06-24",
+          "last_date": "1958-06-29"
+        },
+        {
+          "competition_id": "sb:43",
+          "season_id": "sb:270",
+          "rows": 43,
+          "matches": 1,
+          "first_date": "1962-05-30",
+          "last_date": "1962-05-30"
+        },
+        {
+          "competition_id": "sb:43",
+          "season_id": "sb:272",
+          "rows": 285,
+          "matches": 6,
+          "first_date": "1970-06-03",
+          "last_date": "1970-06-21"
+        },
+        {
+          "competition_id": "sb:43",
+          "season_id": "sb:3",
+          "rows": 1718,
+          "matches": 64,
+          "first_date": "2018-06-14",
+          "last_date": "2018-07-15"
+        },
+        {
+          "competition_id": "sb:43",
+          "season_id": "sb:51",
+          "rows": 177,
+          "matches": 6,
+          "first_date": "1974-06-19",
+          "last_date": "1974-07-07"
+        },
+        {
+          "competition_id": "sb:43",
+          "season_id": "sb:54",
+          "rows": 88,
+          "matches": 3,
+          "first_date": "1986-06-22",
+          "last_date": "1986-06-29"
+        },
+        {
+          "competition_id": "sb:43",
+          "season_id": "sb:55",
+          "rows": 23,
+          "matches": 1,
+          "first_date": "1990-06-24",
+          "last_date": "1990-06-24"
+        },
+        {
+          "competition_id": "sb:44",
+          "season_id": "sb:107",
+          "rows": 146,
+          "matches": 6,
+          "first_date": "2023-08-27",
+          "last_date": "2023-10-22"
+        },
+        {
+          "competition_id": "sb:49",
+          "season_id": "sb:107",
+          "rows": 3543,
+          "matches": 137,
+          "first_date": "2023-03-25",
+          "last_date": "2023-11-12"
+        },
+        {
+          "competition_id": "sb:49",
+          "season_id": "sb:3",
+          "rows": 1043,
+          "matches": 36,
+          "first_date": "2018-04-15",
+          "last_date": "2018-08-12"
+        },
+        {
+          "competition_id": "sb:53",
+          "season_id": "sb:106",
+          "rows": 885,
+          "matches": 31,
+          "first_date": "2022-07-06",
+          "last_date": "2022-07-31"
+        },
+        {
+          "competition_id": "sb:53",
+          "season_id": "sb:315",
+          "rows": 916,
+          "matches": 31,
+          "first_date": "2025-07-02",
+          "last_date": "2025-07-27"
+        },
+        {
+          "competition_id": "sb:55",
+          "season_id": "sb:282",
+          "rows": 1350,
+          "matches": 51,
+          "first_date": "2024-06-14",
+          "last_date": "2024-07-14"
+        },
+        {
+          "competition_id": "sb:55",
+          "season_id": "sb:43",
+          "rows": 1300,
+          "matches": 51,
+          "first_date": "2021-06-11",
+          "last_date": "2021-07-11"
+        },
+        {
+          "competition_id": "sb:7",
+          "season_id": "sb:108",
+          "rows": 684,
+          "matches": 26,
+          "first_date": "2021-08-29",
+          "last_date": "2022-05-21"
+        },
+        {
+          "competition_id": "sb:7",
+          "season_id": "sb:235",
+          "rows": 854,
+          "matches": 32,
+          "first_date": "2022-08-06",
+          "last_date": "2023-06-03"
+        },
+        {
+          "competition_id": "sb:7",
+          "season_id": "sb:27",
+          "rows": 8847,
+          "matches": 377,
+          "first_date": "2015-08-07",
+          "last_date": "2016-05-14"
+        },
+        {
+          "competition_id": "sb:72",
+          "season_id": "sb:107",
+          "rows": 1686,
+          "matches": 64,
+          "first_date": "2023-07-20",
+          "last_date": "2023-08-20"
+        },
+        {
+          "competition_id": "sb:72",
+          "season_id": "sb:30",
+          "rows": 1322,
+          "matches": 52,
+          "first_date": "2019-06-07",
+          "last_date": "2019-07-07"
+        },
+        {
+          "competition_id": "sb:81",
+          "season_id": "sb:275",
+          "rows": 24,
+          "matches": 1,
+          "first_date": "1981-04-10",
+          "last_date": "1981-04-10"
+        },
+        {
+          "competition_id": "sb:81",
+          "season_id": "sb:48",
+          "rows": 32,
+          "matches": 1,
+          "first_date": "1997-10-25",
+          "last_date": "1997-10-25"
+        },
+        {
+          "competition_id": "sb:87",
+          "season_id": "sb:268",
+          "rows": 25,
+          "matches": 1,
+          "first_date": "1983-06-04",
+          "last_date": "1983-06-04"
+        },
+        {
+          "competition_id": "sb:87",
+          "season_id": "sb:279",
+          "rows": 27,
+          "matches": 1,
+          "first_date": "1978-04-19",
+          "last_date": "1978-04-19"
+        },
+        {
+          "competition_id": "sb:87",
+          "season_id": "sb:84",
+          "rows": 22,
+          "matches": 1,
+          "first_date": "1984-05-05",
+          "last_date": "1984-05-05"
+        },
+        {
+          "competition_id": "sb:9",
+          "season_id": "sb:27",
+          "rows": 846,
+          "matches": 34,
+          "first_date": "2015-08-15",
+          "last_date": "2016-05-14"
+        },
+        {
+          "competition_id": "sb:9",
+          "season_id": "sb:281",
+          "rows": 919,
+          "matches": 34,
+          "first_date": "2023-08-19",
+          "last_date": "2024-05-18"
+        }
+      ]
+    }
+  ],
+  "files": [
+    {
+      "path": "freeze_frames.parquet",
+      "sha256": "6836b87d0db11d7e7dba21bba639bea97e60e0f250e97cff891269e530a7ccf1",
+      "bytes": 10039703
+    },
+    {
+      "path": "matches.parquet",
+      "sha256": "e10c461eebe431237beb28adfe864ae46625d65f2ac93e1df5335c074ce7b55e",
+      "bytes": 39573
+    },
+    {
+      "path": "shots.parquet",
+      "sha256": "44952db2d9714ec6dcfdf95472fe5fc643f7907e97a7530e16e94f18eb15b02a",
+      "bytes": 24418288
+    }
+  ],
+  "parquet": {
+    "compression": "zstd",
+    "compression_level": 3,
+    "statistics": true,
+    "row_group_size": 100000
+  },
+  "environment": {
+    "python": "3.12.13",
+    "polars": "2.0.0",
+    "pandera": "0.34.1",
+    "numpy": "2.5.4",
+    "football_core": "0.1.0",
+    "football_core_git": "c235d5207ecbc42b3b139f8055c13b0433848b05",
+    "football_core_dirty": true
+  }
+}

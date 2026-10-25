@@ -10,7 +10,7 @@ Shared foundation for the football model repositories:
 | [football-possession-value](../football-possession-value) | xT, VAEP, OBV / PV-style action valuation |
 | [football-tracking-models](../football-tracking-models) | Pitch control, EPV, OBSO, pressing intensity |
 
-> **Status:** `pitch` (C2), `schema` (C3) and `io.snapshot` with the `fc` CLI (C6) are implemented and tested. Next: the StatsBomb loader (C4). See [`docs/roadmap.md`](docs/roadmap.md).
+> **Status:** `pitch` (C2), `schema` (C3), `io.snapshot` with the `fc` CLI (C6), the StatsBomb open-data loader `io.statsbomb` (C4) and `viz` (C7, shot map and goal-mouth plot) are implemented and tested. Next: the WhoScored loader (C5). See [`docs/roadmap.md`](docs/roadmap.md) and [`docs/modules.md`](docs/modules.md).
 
 ## Why a shared package
 Every model repo needs the same three things: read events from different providers, put them
@@ -33,6 +33,13 @@ uv run fc verify manifests/demo.json          # exit 1 and the file name if anyt
 ```
 Run it as `uv run fc` (zsh and bash have a builtin `fc`) or as `football-core`. Details:
 [`docs/api/snapshot.md`](docs/api/snapshot.md).
+
+StatsBomb open data is downloaded once into the git-ignored cache and frozen as a snapshot:
+```bash
+uv run fc snapshot statsbomb-open-v1 --builder statsbomb --input data/raw/statsbomb/open-data
+```
+Never commit or redistribute the data; every StatsBomb chart carries the StatsBomb logo
+([`docs/api/statsbomb.md`](docs/api/statsbomb.md), [`docs/api/viz.md`](docs/api/viz.md)).
 
 ## Development
 ```bash

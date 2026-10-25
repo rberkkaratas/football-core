@@ -7,10 +7,10 @@ src/football_core/
 ├── cli.py               # the `fc` console script (alias `football-core`): snapshot, verify, builders
 ├── io/
 │   ├── __init__.py      # package docstring only; loaders are imported by name
-│   ├── statsbomb.py     # open-data events + shot freeze frames (GitHub JSON, pinned SHA)
+│   ├── statsbomb.py     # open data at a pinned commit → shots, freeze frames, matches; logo
 │   ├── whoscored.py     # CSV archive / raw JSON → canonical shots, dedup, snapshot export
 │   └── snapshot.py      # parquet + manifest writer and verifier, builder registry
-└── viz/                 # shot map, front-on goal-mouth plot
+└── viz.py               # shot map, front-on goal-mouth plot, attribution
 ```
 
 | Module | Status | Milestone |
@@ -19,9 +19,9 @@ src/football_core/
 | `schema` | ✅ Done | C3 |
 | `io.snapshot` | ✅ Done | C6 |
 | `cli` | ✅ Done | C6 |
-| `io.statsbomb` | Planned | C4 |
+| `io.statsbomb` | ✅ Done | C4 |
 | `io.whoscored` | Planned | C5 |
-| `viz` | Planned | C7 |
+| `viz` | ✅ Done (`viz` extra: matplotlib) | C7 |
 
 Every module ships with unit tests before a model repo depends on it. Reference libraries
 (mplsoccer, kloppy, socceraction) are used as **test oracles only**, never as runtime

@@ -7,6 +7,19 @@
 | WhoScored raw JSON in `opposition-engine` (`raw.raw_match_json`) | Lossless source for new matches | Same as above | **Never** |
 | Public tracking samples | Tracking models | `data/raw/<provider>/` (git-ignored) | Per that dataset's licence |
 
+## StatsBomb open data: cache and logo
+`statsbomb.sync` (run by `fc snapshot … --builder statsbomb`) downloads the open-data files of
+one pinned commit (`OPEN_DATA_COMMIT`) into `data/raw/statsbomb/open-data/<commit>/`: a
+`tree.json` listing each file's git blob id and size, and every file gzip-compressed
+(`<path>.gz`). Each download is checked against its blob id before it is written, and the
+cache is refused before any write unless git ignores it. A complete cache needs no network.
+
+The StatsBomb logo is fetched once with `statsbomb.fetch_logo()` into the same ignored cache
+(checked against its blob id) and is never committed. `football_core.viz` adds it, with
+"Data: StatsBomb", to every chart drawn from StatsBomb rows, and refuses to draw such a chart
+when the logo is missing. Charts from WhoScored rows carry the text "Data: Opta via WhoScored"
+and stay private (table above).
+
 ## Snapshots
 A snapshot is an immutable, zstd-compressed parquet export written with **polars**
 (`football_core.io.snapshot`, the `fc snapshot` command). The data goes to

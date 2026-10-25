@@ -1,6 +1,6 @@
-"""Shared fixtures for the schema (C3) and snapshot (C6) tests.
+"""Shared fixtures for the schema (C3), snapshot (C6), StatsBomb loader (C4) and viz (C7) tests.
 
-Builders live in ``schema_cases`` and ``snapshot_cases``.
+Builders live in ``schema_cases``, ``snapshot_cases``, ``statsbomb_cases`` and ``viz_cases``.
 
 Imports are inside the fixtures so the pitch tests still collect while the C3 dependencies
 (polars, pandera) are not installed yet.
@@ -8,12 +8,13 @@ Imports are inside the fixtures so the pitch tests still collect while the C3 de
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import pytest
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
+    from pathlib import Path
 
     import polars as pl
 
@@ -32,6 +33,25 @@ def valid_freeze_frames() -> pl.DataFrame:
     from schema_cases import freeze_frames_frame
 
     return freeze_frames_frame()
+
+
+@pytest.fixture(scope="module")
+def synthetic_logo(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    """C7 spec §7: a 10 x 60 red/blue RGBA PNG standing in for the StatsBomb logo."""
+    from viz_cases import write_logo
+
+    return write_logo(tmp_path_factory.mktemp("logo") / "logo.png", 10, 60)
+
+
+@pytest.fixture(scope="session")
+def sb_standard(tmp_path_factory: pytest.TempPathFactory) -> Any:
+    """The standard StatsBomb fixture (matches A, B, C of ``statsbomb_cases``), loaded once.
+
+    The result is a frozen ``OpenData`` of immutable polars frames, so sharing it is safe.
+    """
+    import statsbomb_cases as sbc
+
+    return sbc.load_matches(tmp_path_factory.mktemp("sb_standard"), sbc.standard_matches())
 
 
 @pytest.fixture(autouse=True)

@@ -90,9 +90,20 @@ Shot end locations in the goal mouth use the **same `y` axis** as the pitch (pos
   at `x = 105`, so `distance_m` and `angle_rad` are measured to that goal; the loader flips
   with `(105 − x, 68 − y)` when needed. `team_id`, `player_id` and `is_home` still describe
   the player who put the ball in.
-- **StatsBomb cell offset:** StatsBomb coordinates are cell-based; whether a half-cell shift is
-  applied is decided in the StatsBomb loader (C4) against kloppy, and the pitch functions accept
-  it as an explicit argument.
+- **StatsBomb cell offset:** a StatsBomb value names the cell that *ends* at it, so the loader
+  (`io.statsbomb.cell_offset`) subtracts half a cell before mapping, as kloppy does: 0.5 yd when
+  every shot location of the match is an integer (coarse grid), else 0.05 yd (fine grid). The
+  evidence: shifted penalties land on the spot (coarse mean 108.08, fine 107.99 for a true 108);
+  `metadata.shot_fidelity_version` agrees with the inferred grid on all 3,764 matches that carry
+  it, and a disagreement raises; goals sit at the left post (y = 44.0) 57 times but at the right
+  post (36.0) only 8 times, the asymmetry of a ceiling-to-0.1 grid, and coarse matches record
+  goal-mouth y in tenths. The same offset applies to freeze-frame players, `gk_*` and
+  `end_location`, with two deliberate deviations from kloppy, both on post-shot columns only:
+  an end x of 120 is the goal line and is not shifted (105 m), and goal-mouth height `z` is not
+  shifted (recorded heights start at 0.0). A 3-value end location uses y − 0.05 on both grids.
+  27 coarse-grid shots have tenths in their freeze frames and still get 0.5 (error ≤ 0.45 yd).
+  `visible_area` polygons are not shifted. The pitch functions take the offset as an explicit
+  argument (`cell_offset=0.0` after the loader has shifted).
 - **Out-of-bounds values** are clipped to the pitch by the interpolation.
 
 ## Geometry
