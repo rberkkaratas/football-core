@@ -276,8 +276,9 @@ def sync(
     if not isinstance(commit, str) or re.fullmatch(r"[0-9a-f]{40}", commit) is None:
         raise ValueError(f"commit must be 40 lowercase hex characters, not {commit!r}")
     get = _http_get if fetch is None else fetch
+    # Check before resolving: a data/ symlinked out of the repo then fails closed (C6 rule).
+    snapshot._check_ignored(Path(os.path.abspath(cache)) / commit / "tree.json")
     dest = snapshot._resolve(Path(cache)) / commit
-    snapshot._check_ignored(dest / "tree.json")
     tree_file = dest / "tree.json"
     if not tree_file.exists():
         tree = _list_tree(commit, get)
@@ -353,8 +354,8 @@ def fetch_logo(cache: StrPath = DEFAULT_CACHE, *, fetch: Fetch | None = None) ->
     >>> fetch_logo().name  # doctest: +SKIP
     'SB - Icon Lockup - Colour positive.png'
     """
+    snapshot._check_ignored(Path(os.path.abspath(logo_file(cache))))
     target = snapshot._resolve(logo_file(cache))
-    snapshot._check_ignored(target)
     if target.is_file() and _blob_sha1(target.read_bytes()) == LOGO_BLOB:
         return target
     get = _http_get if fetch is None else fetch
@@ -498,11 +499,29 @@ def _seconds(timestamp: object, match_id: int) -> float:
     return int(hours) * 3600 + int(minutes) * 60 + float(seconds)
 
 
+def _number(value: object, what: str) -> float:
+    """A JSON number as float; ``float()`` alone would take ``true`` or ``"0.3"`` silently."""
+    if not isinstance(value, int | float) or isinstance(value, bool):
+        raise TypeError(f"{what} {value!r} is not numeric")  # _shape adds the match
+    return float(value)
+
+
 def _xy(location: Sequence[object]) -> tuple[float, float]:
     x, y = location[0], location[1]
-    if not isinstance(x, int | float) or not isinstance(y, int | float) or isinstance(x, bool):
-        raise TypeError(f"location {location!r} is not numeric")
+    if (
+        not isinstance(x, int | float)
+        or not isinstance(y, int | float)
+        or isinstance(x, bool)
+        or isinstance(y, bool)
+    ):
+        raise TypeError(f"location {location!r} is not numeric")  # _shape adds the match
     return float(x), float(y)
+
+
+def _flag(value: object, mid: int, eid: str, field: str) -> bool:
+    if not isinstance(value, bool):
+        raise ValueError(f"match {mid}: event {eid} field {field} is {value!r}, not true or false")
+    return value
 
 
 def _assist(shot: Event, by_id: Mapping[str, Event]) -> tuple[str, str | None]:
@@ -640,24 +659,30 @@ def _add_match(
                 shots[name].append(None)
             continue
         end = shot["end_location"]
+        if len(end) not in (2, 3):
+            raise ValueError(
+                f"match {mid}: event {event['id']} end_location {end!r} needs 2 or 3 values"
+            )
         ex, ey = _xy(end)
         three = len(end) == 3
+        ez = _number(end[2], "end_location z") if three else None
         shots["ex"].append(ex if ex == _GOAL_LINE_X else ex - c)  # the goal line stays put
         shots["ey"].append(ey - (FINE_OFFSET if three else c))  # goal-mouth y is in tenths
-        shots["ez"].append(float(end[2]) * _YARD if three else None)  # heights start at 0.0
+        shots["ez"].append(None if ez is None else ez * _YARD)  # heights start at 0.0
         mouth = three and outcome_name != "Blocked"
         shots["gy"].append(ey - FINE_OFFSET if mouth else None)
-        shots["gz"].append(float(end[2]) if mouth else None)
+        shots["gz"].append(ez if mouth else None)
         keeper = None
         if not penalty:
             for player in shot.get("freeze_frame", ()):
                 px, py = _xy(player["location"])
                 is_keeper = player["position"]["name"] == "Goalkeeper"
-                if is_keeper and not player["teammate"] and keeper is None:
+                mate = _flag(player["teammate"], mid, event["id"], "freeze_frame teammate")
+                if is_keeper and not mate and keeper is None:
                     keeper = (px - c, py - c)  # the opponent keeper; never the shooter's own
                 frames["shot_id"].append(f"sb:{event['id']}")
                 frames["player_id"].append(f"sb:{player['player']['id']}")
-                frames["is_teammate"].append(player["teammate"])
+                frames["is_teammate"].append(mate)
                 frames["is_keeper"].append(is_keeper)
                 frames["sx"].append(px - c)
                 frames["sy"].append(py - c)
@@ -670,9 +695,9 @@ def _add_match(
         assist_type, assist_id = _assist(shot, by_id)
         shots["assist_type"].append(assist_type)
         shots["assist_event_id"].append(assist_id)
-        shots["provider_xg"].append(float(shot["statsbomb_xg"]))
+        shots["provider_xg"].append(_number(shot["statsbomb_xg"], "shot.statsbomb_xg"))
         for flag in _FLAGS:
-            shots[flag].append(shot.get(flag, False))
+            shots[flag].append(_flag(shot.get(flag, False), mid, event["id"], f"shot.{flag}"))
 
 
 def _metres(xs: list[float | None], ys: list[float | None]) -> tuple[pl.Series, pl.Series]:

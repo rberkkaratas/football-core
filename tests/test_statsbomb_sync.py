@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import email.message
 import gzip
+import http.client
 import json
 import subprocess
 import tempfile
@@ -111,6 +112,36 @@ def test_sync_tree_listing(tmp_path: Path, case: str) -> None:
     assert written == {f"cache/{sbc.COMMIT}/tree.json"} | {
         f"cache/{sbc.COMMIT}/{p}.gz" for p in files
     }
+
+
+def test_tree_json_filtered_on_read(tmp_path: Path) -> None:
+    """A tampered ``tree.json`` key outside ``TREE_PATH`` is never fetched, written or read."""
+    files, cache = _files(), tmp_path / "cache"
+    checkout = statsbomb.sync(cache, commit=sbc.COMMIT, fetch=sbc.FakeFetch(sbc.fake_remote(files)))
+    tree_file = checkout / "tree.json"
+    tree = json.loads(tree_file.read_text(encoding="utf-8"))
+    tree.update({decoy: ["0" * 40, 1] for decoy in DECOYS})
+    tree_file.write_text(json.dumps(tree), encoding="utf-8")
+    before = sorted(p for p in tmp_path.rglob("*") if p.is_file())
+    offline = sbc.FakeFetch({})  # any call fails the test
+    assert statsbomb.sync(cache, commit=sbc.COMMIT, fetch=offline) == checkout
+    assert offline.calls == []
+    assert sorted(p for p in tmp_path.rglob("*") if p.is_file()) == before
+    assert statsbomb.load(checkout).shots.height == sbc.SHOT_ROWS
+
+
+@snc.needs_git
+def test_sync_symlinked_data_fails_closed(tmp_path: Path) -> None:
+    """c4 R1: a ``data/`` symlinked out of the repo cannot be checked, so sync refuses it."""
+    repo = snc.git_repo(tmp_path / "repo")
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (repo / "data").symlink_to(outside, target_is_directory=True)
+    fetch = sbc.FakeFetch(sbc.fake_remote(_files()))
+    with pytest.raises(ValueError, match="cannot check whether"):
+        statsbomb.sync(repo / "data" / "raw" / "open-data", commit=sbc.COMMIT, fetch=fetch)
+    assert fetch.calls == []
+    assert list(outside.iterdir()) == []
 
 
 def test_sync_fetch_oserror_propagates(tmp_path: Path) -> None:
@@ -226,7 +257,9 @@ class _Response:
         self.close()
 
 
-@pytest.mark.parametrize("case", ["gzip_body", "identity_body", "404", "bad_gzip_body"])
+@pytest.mark.parametrize(
+    "case", ["gzip_body", "identity_body", "404", "bad_gzip_body", "incomplete_read"]
+)
 def test_http_get(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, case: str) -> None:
     """``fetch=None`` uses ``_http_get`` (``urllib.request.urlopen`` patched here)."""
     files = {"data/competitions.json": b"[]"}
@@ -238,6 +271,8 @@ def test_http_get(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, case: str) ->
         url = request.full_url if isinstance(request, urllib.request.Request) else request
         if case == "404":
             raise urllib.error.HTTPError(url, 404, "Not Found", email.message.Message(), None)
+        if case == "incomplete_read":  # an http.client.HTTPException, not an OSError
+            raise http.client.IncompleteRead(b"partial", 10)
         if case == "bad_gzip_body":
             return _Response(gzip.compress(remote[url])[:-12], "gzip")  # EOFError when decoded
         if case == "gzip_body":
@@ -246,7 +281,7 @@ def test_http_get(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, case: str) ->
 
     monkeypatch.setattr(urllib.request, "urlopen", urlopen)
     cache = tmp_path / "cache"
-    if case in ("404", "bad_gzip_body"):
+    if case in ("404", "bad_gzip_body", "incomplete_read"):
         with pytest.raises(OSError):
             statsbomb.sync(cache, commit=sbc.COMMIT)
         assert not (cache / sbc.COMMIT / "tree.json").exists()

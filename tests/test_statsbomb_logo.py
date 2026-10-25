@@ -75,6 +75,20 @@ def test_fetch_logo_refuses_unignored_cache(tmp_path: Path, fake_logo: bytes) ->
     assert not cache.exists() or sorted(p for p in cache.rglob("*") if p.is_file()) == []
 
 
+@snc.needs_git
+def test_fetch_logo_symlinked_data_fails_closed(tmp_path: Path, fake_logo: bytes) -> None:
+    """As ``sync``: a ``data/`` symlinked out of the repo cannot be checked; nothing is fetched."""
+    repo = snc.git_repo(tmp_path / "repo")
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (repo / "data").symlink_to(outside, target_is_directory=True)
+    fetch = sbc.FakeFetch({_logo_url(): fake_logo})
+    with pytest.raises(ValueError, match="cannot check whether"):
+        statsbomb.fetch_logo(repo / "data" / "raw" / "statsbomb" / "open-data", fetch=fetch)
+    assert fetch.calls == []
+    assert list(outside.iterdir()) == []
+
+
 def test_logo_not_tracked() -> None:
     def git(*args: str) -> str:
         out = subprocess.run(

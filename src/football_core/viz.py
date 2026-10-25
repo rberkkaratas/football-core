@@ -24,6 +24,7 @@ Needs the ``viz`` extra: ``uv add 'football-core[viz]'``.
 from __future__ import annotations
 
 import math
+import os
 from pathlib import Path
 from types import MappingProxyType
 from typing import Final
@@ -40,13 +41,17 @@ from matplotlib.offsetbox import AnnotationBbox, OffsetImage
 from matplotlib.transforms import ScaledTranslation
 
 from football_core import pitch, schema
-from football_core.io import statsbomb
-from football_core.io.snapshot import StrPath
 
 FloatArray = npt.NDArray[np.float64]
+StrPath = str | os.PathLike[str]
 BoolArray = npt.NDArray[np.bool_]
 Image = npt.NDArray[np.generic]
 
+# statsbomb.logo_file() spelled out (a test keeps them equal), so charts need no provider loader
+DEFAULT_LOGO: Final[str] = (
+    "data/raw/statsbomb/open-data/4b73468fc5b0f1950f9f66fada70ad3a4f9327cb/"
+    "img/SB - Icon Lockup - Colour positive.png"
+)
 AREA_PER_XG: Final[float] = 600.0  # marker area in pt² at xG = 1 (matplotlib's `s` is area)
 SIZE_KEY: Final[tuple[float, ...]] = (0.05, 0.2, 0.5)
 CENTRE_CIRCLE_RADIUS: Final[float] = 9.15
@@ -206,7 +211,7 @@ def draw_goal_mouth(ax: Axes | None = None) -> Axes:
 
 
 def _read_logo(logo: StrPath | None) -> Image:
-    path = statsbomb.logo_file() if logo is None else Path(logo)
+    path = Path(DEFAULT_LOGO if logo is None else logo)
     if not path.is_file():  # missing, a directory, a dangling symlink, a loop, a FIFO
         raise FileNotFoundError(
             f"no StatsBomb logo at '{path}'; run statsbomb.fetch_logo() or pass logo="
@@ -356,8 +361,8 @@ def add_attribution(ax: Axes, *providers: str, logo: StrPath | None = None) -> N
     *providers : str
         Values of ``schema.PROVIDERS``; a mixed chart credits each in one line.
     logo : str or path, optional
-        The StatsBomb logo PNG; default ``statsbomb.logo_file()``, relative to the working
-        directory (fetch it once with ``statsbomb.fetch_logo()``).
+        The StatsBomb logo PNG; default ``DEFAULT_LOGO`` (``statsbomb.logo_file()``),
+        relative to the working directory (fetch it once with ``statsbomb.fetch_logo()``).
 
     Raises
     ------
@@ -423,7 +428,7 @@ def shot_map(
         Axes to draw on; by default a new figure (Agg canvas, fixed layout).
     logo : str or path, optional
         StatsBomb logo PNG, read when the frame has StatsBomb rows; default
-        ``statsbomb.logo_file()``.
+        ``DEFAULT_LOGO``.
     area_per_xg : float, default AREA_PER_XG
         Marker area in pt² at xG = 1.
 

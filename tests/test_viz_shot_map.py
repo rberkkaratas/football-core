@@ -85,6 +85,21 @@ def test_own_half_not_shown_and_counted() -> None:
     assert vc.note(vc.render("shot_map", shots[:2])) is None  # nothing hidden: no note
 
 
+def test_view_bounded_on_every_side() -> None:
+    """Rows past the goal line or either touchline are counted, never drawn (C7 ratify 1)."""
+    shots = vc.frame(
+        x=[pitch.PITCH_LENGTH, 105.5, 95.0, 95.0, 95.0, 95.0],
+        y=[34.0, 34.0, 0.0, pitch.PITCH_WIDTH, -0.5, 68.5],
+        xg=[0.1] * 6,
+    )
+    ax = vc.render("shot_map", shots)
+    assert vc.same_points(
+        vc.offsets(ax, viz.SHOTS_GID),
+        np.array([[34.0, pitch.PITCH_LENGTH], [0.0, 95.0], [pitch.PITCH_WIDTH, 95.0]]),
+    )
+    assert vc.note(ax) == "not shown: 3 outside the view"
+
+
 @pytest.mark.parametrize("chart", CHARTS)
 def test_own_goals_and_shootout_not_shown(chart: str) -> None:
     # An own goal at x = 50 (own goals can sit in the own half, x 47.8..105) with no xg and no

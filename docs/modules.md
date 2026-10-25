@@ -8,10 +8,12 @@ src/football_core/
 ├── io/
 │   ├── __init__.py      # package docstring only; loaders are imported by name
 │   ├── statsbomb.py     # open data at a pinned commit → shots, freeze frames, matches; logo
-│   ├── whoscored.py     # CSV archive / raw JSON → canonical shots, dedup, snapshot export
 │   └── snapshot.py      # parquet + manifest writer and verifier, builder registry
 └── viz.py               # shot map, front-on goal-mouth plot, attribution
 ```
+
+Planned (C5, not written yet): `io/whoscored.py`, the WhoScored CSV archive → canonical
+shots, dedup and snapshot export.
 
 | Module | Status | Milestone |
 |---|---|---|

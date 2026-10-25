@@ -52,6 +52,7 @@ def test_default_logo_path(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> N
     assert (
         default == Path(statsbomb.DEFAULT_CACHE) / statsbomb.OPEN_DATA_COMMIT / statsbomb.LOGO_PATH
     )
+    assert Path(viz.DEFAULT_LOGO) == default  # viz spells it out so it needs no loader import
     vc.write_logo(default)
     for chart in CHARTS:
         ax = vc.render(chart, vc.edge_frame("statsbomb"))  # no logo=

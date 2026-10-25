@@ -371,6 +371,64 @@ def test_unknown_value_raises(
     _value_error(lambda: _shot_only(tmp_path, ev, **match_kwargs), str(sbc.A), *needles)
 
 
+def _ff(location: Any, *, teammate: Any = False) -> list[dict[str, Any]]:
+    keeper = sbc.ff_player(sbc.AWAY_KEEPER, location, teammate=False, keeper=True)
+    return [keeper, {**sbc.ff_player(2003, (110.15, 38.05), teammate=False), "teammate": teammate}]
+
+
+# Spec §2.1: a bool or str coordinate, a non-numeric number, a non-bool flag, an odd
+# visible_area or a foreign team is a ValueError naming the match, never a silent float().
+# fmt: off
+BAD_VALUES: dict[str, tuple[dict[str, Any], dict[str, Any], tuple[str, ...]]] = {
+    "bool_x_coarse": ({"location": (True, 40)}, {"fidelity": "1"}, ("location",)),
+    "bool_y_coarse": ({"location": (109, True)}, {"fidelity": "1"}, ("location",)),
+    "str_x": ({"location": ("102.35", 35.65)}, {}, ("location",)),
+    "str_y": ({"location": (102.35, "35.65")}, {}, ("location",)),
+    "bool_y_freeze_frame": ({"freeze_frame": _ff((118.25, True))}, {}, ("location",)),
+    "bool_y_end_location": ({"end_location": (118.15, True, 0.55)}, {}, ("location",)),
+    "str_end_z": ({"end_location": (118.15, 39.05, "1.5")}, {}, ("end_location z",)),
+    "bool_end_z": ({"end_location": (118.15, 39.05, True)}, {}, ("end_location z",)),
+    "four_value_end": ({"end_location": (118.15, 39.05, 0.55, 1.0)}, {}, ("end_location",)),
+    "str_xg": ({"xg": "0.3"}, {}, ("statsbomb_xg",)),
+    "bool_xg": ({"xg": True}, {}, ("statsbomb_xg",)),
+    "str_teammate": ({"freeze_frame": _ff((118.25, 40.15), teammate="yes")}, {}, ("teammate",)),
+    "foreign_team": ({"team": sbc.team(303)}, {}, ("303", "not in the match")),
+}
+# fmt: on
+
+
+@pytest.mark.parametrize("case", list(BAD_VALUES))
+def test_bad_value_raises(tmp_path: Path, case: str) -> None:
+    kwargs, match_kwargs, needles = BAD_VALUES[case]
+    ev = sbc.shot("fake-shot-v01", **kwargs)
+    _value_error(lambda: _shot_only(tmp_path, ev, **match_kwargs), str(sbc.A), *needles)
+
+
+def test_mixed_flag_types_raise(tmp_path: Path) -> None:
+    """One shot with ``first_time: true`` and one with ``"yes"``: a ValueError naming the match
+    and the field, not a polars TypeError from building the Boolean column."""
+    good = sbc.shot("fake-shot-v02", flags=("first_time",))
+    bad = sbc.shot("fake-shot-v03", minute=12)
+    bad["shot"]["first_time"] = "yes"
+    _value_error(lambda: _shot_only(tmp_path, good, bad), str(sbc.A), "shot.first_time", "'yes'")
+
+
+def test_odd_visible_area_raises(tmp_path: Path) -> None:
+    ev = sbc.shot("fake-shot-v04")
+    sixty = [sbc.visible_area("fake-shot-v04", [100.0, 30.0, 110.0, 30.0, 105.0])]
+    _value_error(
+        lambda: _shot_only(tmp_path, ev, three_sixty=sixty), str(sbc.A), "odd number of values"
+    )
+
+
+def test_foreign_team_own_goal_raises(tmp_path: Path) -> None:
+    ev = sbc.own_goal_against(
+        "fake-oga-v05", team_id=sbc.AWAY, player_id=2004, location=(5.5, 40.5)
+    )
+    ev["team"] = sbc.team(303)
+    _value_error(lambda: _shot_only(tmp_path, ev), str(sbc.A), "303", "not in the match")
+
+
 def _corrupt_cases() -> dict[str, Callable[[Path, bytes], None]]:
     events = EVENTS_A
 
