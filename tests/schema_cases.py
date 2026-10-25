@@ -18,7 +18,7 @@ from typing import Any
 
 import polars as pl
 
-from football_core import pitch
+from football_core import pitch, schema
 
 # --- Vocabularies (spec §1; tuple order is the Enum physical order) -------------------------
 
@@ -46,6 +46,7 @@ TECHNIQUES = (
     "overhead_kick",
 )
 OUTCOMES = ("goal", "saved", "blocked", "post", "off_target")
+GENDERS = ("male", "female")  # MS3.matches §4.1: male first, the indicator reference
 VOCABULARIES: dict[str, tuple[str, ...]] = {
     "PROVIDERS": PROVIDERS,
     "BODY_PARTS": BODY_PARTS,
@@ -53,6 +54,7 @@ VOCABULARIES: dict[str, tuple[str, ...]] = {
     "ASSIST_TYPES": ASSIST_TYPES,
     "TECHNIQUES": TECHNIQUES,
     "OUTCOMES": OUTCOMES,
+    "GENDERS": GENDERS,
 }
 # Enum dtype constant name -> vocabulary constant name
 ENUM_CONSTANTS = {
@@ -62,6 +64,7 @@ ENUM_CONSTANTS = {
     "ASSIST_TYPE": "ASSIST_TYPES",
     "TECHNIQUE": "TECHNIQUES",
     "OUTCOME": "OUTCOMES",
+    "GENDER": "GENDERS",
 }
 
 POLYGON = pl.List(pl.Array(pl.Float64, 2))
@@ -125,6 +128,70 @@ FREEZE_FRAME_COLUMNS: tuple[tuple[str, pl.DataType, bool], ...] = (
     ("x", pl.Float64(), False),
     ("y", pl.Float64(), False),
 )
+# MS3.matches spec §2, typed by hand: name, dtype, nullable (canonical order).
+MATCH_COLUMNS: tuple[tuple[str, pl.DataType, bool], ...] = (
+    ("match_id", pl.String(), False),
+    ("provider", pl.Enum(PROVIDERS), False),
+    ("competition_id", pl.String(), False),
+    ("season_id", pl.String(), False),
+    ("match_date", pl.Date(), False),
+    ("home_team_id", pl.String(), False),
+    ("away_team_id", pl.String(), False),
+    ("competition_name", pl.String(), False),
+    ("season_name", pl.String(), False),
+    ("gender", pl.Enum(GENDERS), False),
+    ("home_score", pl.Int16(), True),
+    ("away_score", pl.Int16(), True),
+    ("has_360", pl.Boolean(), True),
+    ("schema_version", pl.String(), False),
+)
+MATCH_ROLES = {
+    "match_id": "identity",
+    "provider": "identity",
+    "competition_id": "identity",
+    "season_id": "identity",
+    "match_date": "identity",
+    "home_team_id": "identity",
+    "away_team_id": "identity",
+    "competition_name": "identity",
+    "season_name": "identity",
+    "gender": "pre_shot",
+    "home_score": "outcome",
+    "away_score": "outcome",
+    "has_360": "lineage",
+    "schema_version": "lineage",
+}
+MATCH_ID_COLUMNS = frozenset(
+    {"match_id", "competition_id", "season_id", "home_team_id", "away_team_id"}
+)
+MATCH_BOUNDS: dict[str, tuple[float | None, float | None]] = {
+    "home_score": (0, 99),
+    "away_score": (0, 99),
+}
+MATCH_NAMES = tuple(name for name, _, _ in MATCH_COLUMNS)
+MATCH_DTYPES = {name: dtype for name, dtype, _ in MATCH_COLUMNS}
+MATCH_RULES: tuple[tuple[str, tuple[str, ...]], ...] = (
+    (
+        "ids_match_provider",
+        ("match_id", "provider", "competition_id", "season_id", "home_team_id", "away_team_id"),
+    ),
+    ("distinct_teams", ("match_id", "home_team_id", "away_team_id")),
+    ("scores_both_or_neither", ("match_id", "home_score", "away_score")),
+    ("has_360_matches_provider", ("match_id", "provider", "has_360")),
+)
+CROSS_SHOT_RULES: dict[str, tuple[str, ...]] = {
+    "match_exists": ("shot_id", "match_id"),
+    "shot_agrees_with_match": (
+        "shot_id",
+        "match_id",
+        "competition_id",
+        "season_id",
+        "match_date",
+        "team_id",
+        "opponent_team_id",
+        "is_home",
+    ),
+}
 SHOT_NAMES = tuple(name for name, _, _ in SHOT_COLUMNS)
 FREEZE_FRAME_NAMES = tuple(name for name, _, _ in FREEZE_FRAME_COLUMNS)
 SHOT_DTYPES = {name: dtype for name, dtype, _ in SHOT_COLUMNS}
@@ -339,7 +406,7 @@ def base_shot_rows() -> list[dict[str, Any]]:
         "assist_event_id": "sb:00000000-0000-0000-0000-0000000000a1",
         "raw_type": "Shot",
         "raw_qualifiers": '{"outcome": {"name": "Goal"}, "first_time": false}',
-        "schema_version": "1.0",
+        "schema_version": schema.SCHEMA_VERSION,
     }
     sb_penalty_saved = {
         **sb_goal,
@@ -418,7 +485,7 @@ def base_shot_rows() -> list[dict[str, Any]]:
         "assist_event_id": "ws:900000002",
         "raw_type": "SavedShot",
         "raw_qualifiers": '[{"type": "Blocked"}, {"type": "Head"}]',
-        "schema_version": "1.0",
+        "schema_version": schema.SCHEMA_VERSION,
     }
     ws_own_goal = {
         **ws_blocked_header,
@@ -525,6 +592,69 @@ def base_freeze_frame_rows() -> list[dict[str, Any]]:
     ]
 
 
+def base_match_rows() -> list[dict[str, Any]]:
+    """The matches of ``base_shot_rows`` plus a women's match without shots.
+
+    Row 0 holds shots 1-2 (home sb:901), row 1 the WhoScored shots 3-4 (home ws:912: shot 3
+    is the away side's, shot 4 the home side's own goal), row 2 the shoot-out shot 5, row 3 has
+    no shots (allowed: every shot needs a match, not every match a shot). The WhoScored row has
+    no recorded score and a null has_360, as C5 will write most of its matches.
+    """
+    sb = {
+        "match_id": "sb:9000001",
+        "provider": "statsbomb",
+        "competition_id": "sb:9001",
+        "season_id": "sb:9002",
+        "match_date": dt.date(2024, 3, 2),
+        "home_team_id": "sb:901",
+        "away_team_id": "sb:902",
+        "competition_name": "Fixture League",
+        "season_name": "2023/2024",
+        "gender": "male",
+        "home_score": 1,
+        "away_score": 0,
+        "has_360": True,
+        "schema_version": schema.SCHEMA_VERSION,
+    }
+    ws = {
+        **sb,
+        "match_id": "ws:9100001",
+        "provider": "whoscored",
+        "competition_id": "ws:9101",
+        "season_id": "ws:9102",
+        "match_date": dt.date(2024, 3, 9),
+        "home_team_id": "ws:912",
+        "away_team_id": "ws:911",
+        "competition_name": "Fixture Liga",
+        "home_score": None,
+        "away_score": None,
+        "has_360": None,
+    }
+    shootout = {
+        **sb,
+        "match_id": "sb:9000002",
+        "match_date": dt.date(2024, 3, 16),
+        "away_team_id": "sb:903",
+        "home_score": 0,
+        "away_score": 0,
+        "has_360": False,
+    }
+    women = {
+        **sb,
+        "match_id": "sb:9000003",
+        "competition_id": "sb:9003",
+        "match_date": dt.date(2024, 3, 2),
+        "home_team_id": "sb:951",
+        "away_team_id": "sb:952",
+        "competition_name": "Fixture Women's League",
+        "gender": "female",
+        "home_score": 2,
+        "away_score": 2,
+        "has_360": False,
+    }
+    return [sb, ws, shootout, women]
+
+
 # --- Frame builders and one-cell mutation helpers -------------------------------------------
 
 
@@ -546,6 +676,10 @@ def shots_frame(rows: Sequence[Mapping[str, Any]] | None = None) -> pl.DataFrame
 
 def freeze_frames_frame(rows: Sequence[Mapping[str, Any]] | None = None) -> pl.DataFrame:
     return build_frame(base_freeze_frame_rows() if rows is None else rows, FREEZE_FRAME_COLUMNS)
+
+
+def matches_frame(rows: Sequence[Mapping[str, Any]] | None = None) -> pl.DataFrame:
+    return build_frame(base_match_rows() if rows is None else rows, MATCH_COLUMNS)
 
 
 def with_value(

@@ -74,7 +74,7 @@ def test_message_header_and_one_line_per_failure(valid_shots: pl.DataFrame) -> N
     err = _err(sc.with_value(valid_shots, "provider_xg", 0, 1.2))
     lines = str(err).splitlines()
     n = len(err.failures)
-    assert lines[0] == f"shots: {n} schema problem(s) (schema 1.0)"
+    assert lines[0] == f"shots: {n} schema problem(s) (schema 1.1)"
     assert len(lines) == n + 1
     assert all(line.startswith("  - ") for line in lines[1:])
 
@@ -529,7 +529,7 @@ def test_wrong_schema_version(valid_shots: pl.DataFrame) -> None:
     assert "column 'schema_version'" in str(err) and "'0.9'" in str(err)
 
 
-@pytest.mark.parametrize("version", ["1", "1.0 ", "v1.0", "1.0.0", "2.0"])
+@pytest.mark.parametrize("version", ["1", "1.0", "1.0 ", "v1.0", "1.0.0", "2.0"])
 def test_schema_version_is_exact(valid_shots: pl.DataFrame, version: str) -> None:
     err = _err(sc.with_value(valid_shots, "schema_version", 2, version))
     _one(err, "schema_version", "schema_version")

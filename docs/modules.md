@@ -3,7 +3,7 @@
 ```
 src/football_core/
 ├── pitch.py             # provider → 105 x 68 m piecewise mapping, goal mouth, distance & angle
-├── schema.py            # shot + freeze-frame tables: dtypes, pandera models, column roles
+├── schema.py            # matches, shot + freeze-frame tables: dtypes, pandera models, roles
 ├── cli.py               # the `fc` console script (alias `football-core`): snapshot, verify, builders
 ├── io/
 │   ├── __init__.py      # package docstring only; loaders are imported by name
@@ -18,7 +18,7 @@ shots, dedup and snapshot export.
 | Module | Status | Milestone |
 |---|---|---|
 | `pitch` | ✅ Done | C2 |
-| `schema` | ✅ Done | C3 |
+| `schema` | ✅ Done (1.1: matches table) | C3, C3.1 |
 | `io.snapshot` | ✅ Done | C6 |
 | `cli` | ✅ Done | C6 |
 | `io.statsbomb` | ✅ Done | C4 |

@@ -2,9 +2,9 @@
   "manifest_version": 1,
   "name": "statsbomb-open-v1",
   "builder": "statsbomb",
-  "schema_version": "1.0",
+  "schema_version": "1.1",
   "data_dir": "../data/snapshots/statsbomb-open-v1",
-  "data_digest": "9b34e93fa3c8300f9d49d107a4fa92dfd4eed55d2cf72d8ba878afd37cc7d0ad",
+  "data_digest": "31146e70cefb5fe39056b8ef24216724a5d5162601decb2e214c0608b2eb3e78",
   "source": {
     "kind": "git",
     "uri": "https://github.com/statsbomb/open-data",
@@ -55,7 +55,7 @@
       "file": "matches.parquet",
       "rows": 3961,
       "matches": 3961,
-      "schema": null,
+      "schema": "matches",
       "sort_by": [
         "match_date",
         "match_id"
@@ -66,12 +66,20 @@
           "dtype": "String"
         },
         {
+          "name": "provider",
+          "dtype": "Enum(categories=['statsbomb', 'whoscored'])"
+        },
+        {
           "name": "competition_id",
           "dtype": "String"
         },
         {
           "name": "season_id",
           "dtype": "String"
+        },
+        {
+          "name": "match_date",
+          "dtype": "Date"
         },
         {
           "name": "home_team_id",
@@ -91,11 +99,7 @@
         },
         {
           "name": "gender",
-          "dtype": "String"
-        },
-        {
-          "name": "match_date",
-          "dtype": "Date"
+          "dtype": "Enum(categories=['male', 'female'])"
         },
         {
           "name": "home_score",
@@ -108,6 +112,10 @@
         {
           "name": "has_360",
           "dtype": "Boolean"
+        },
+        {
+          "name": "schema_version",
+          "dtype": "String"
         }
       ],
       "groups": [
@@ -1610,12 +1618,12 @@
     },
     {
       "path": "matches.parquet",
-      "sha256": "e10c461eebe431237beb28adfe864ae46625d65f2ac93e1df5335c074ce7b55e",
-      "bytes": 39573
+      "sha256": "e9cf80a64fd44d1dbe882a8d58c7c3d1ac01fc22b9c10247fb2316fb770f1417",
+      "bytes": 40615
     },
     {
       "path": "shots.parquet",
-      "sha256": "44952db2d9714ec6dcfdf95472fe5fc643f7907e97a7530e16e94f18eb15b02a",
+      "sha256": "2c05c497d87a486e348ce17c7114e353dd114f12f1442bbb1c60b77fed424854",
       "bytes": 24418288
     }
   ],
@@ -1631,7 +1639,7 @@
     "pandera": "0.34.1",
     "numpy": "2.5.4",
     "football_core": "0.1.0",
-    "football_core_git": "c235d5207ecbc42b3b139f8055c13b0433848b05",
+    "football_core_git": "fc95d856b06e37f63a6607a4b9c9727cc473ab41",
     "football_core_dirty": true
   }
 }

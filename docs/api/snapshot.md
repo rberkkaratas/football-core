@@ -80,7 +80,7 @@ a loader reading the epoch with the wrong unit.
   "manifest_version": 1,
   "name": "demo",
   "builder": "parquet",
-  "schema_version": "1.0",
+  "schema_version": "1.1",
   "data_dir": "../data/snapshots/demo",
   "data_digest": "<64 hex>",
   "source": {

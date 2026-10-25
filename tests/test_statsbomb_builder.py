@@ -82,7 +82,7 @@ def test_fc_snapshot_statsbomb_fixture(capsys: pytest.CaptureFixture[str], tmp_p
     assert tables["shots"].height == sbc.SHOT_ROWS
     assert tables["freeze_frames"].height == sbc.FREEZE_FRAME_ROWS
     matches = tables["matches"]
-    assert dict(matches.schema) == sbc.MATCH_DTYPES
+    assert list(matches.schema.items()) == list(sbc.MATCH_DTYPES.items())
     assert matches.height == 3 and matches.null_count().sum_horizontal().item() == 0
     m = json.loads(manifest.read_text(encoding="utf-8"))
     assert m["builder"] == "statsbomb"

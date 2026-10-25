@@ -79,15 +79,6 @@ DEFAULT_CACHE: Final[str] = "data/raw/statsbomb/open-data"
 TREE_PATH: Final = re.compile(
     r"data/(competitions|(matches/[0-9]+/[0-9]+|events/[0-9]+|lineups/[0-9]+|three-sixty/[0-9]+))\.json"
 )
-# fmt: off
-MATCH_SCHEMA: Final[pl.Schema] = pl.Schema({
-    "match_id": pl.String(), "competition_id": pl.String(), "season_id": pl.String(),
-    "home_team_id": pl.String(), "away_team_id": pl.String(), "competition_name": pl.String(),
-    "season_name": pl.String(), "gender": pl.String(), "match_date": pl.Date(),
-    "home_score": pl.Int16(), "away_score": pl.Int16(), "has_360": pl.Boolean(),
-})
-# fmt: on
-
 LOGO_PATH: Final[str] = "img/SB - Icon Lockup - Colour positive.png"
 LOGO_BLOB: Final[str] = "fc75fa646cba5d0fa9dfcf8b183646b5fe32d8cc"  # git blob at OPEN_DATA_COMMIT
 _TREE_URL: Final = "https://api.github.com/repos/statsbomb/open-data/git/trees/{}?recursive=1"
@@ -141,14 +132,14 @@ _log = logging.getLogger(__name__)
 
 @dataclass(frozen=True)
 class OpenData:
-    """What ``load`` returns: validated C3 tables, the match table and the skipped 360 files.
+    """What ``load`` returns: the validated C3 tables and the skipped 360 files.
 
     Attributes
     ----------
     shots, freeze_frames : polars.DataFrame
         The C3 tables, already validated.
     matches : polars.DataFrame
-        One row per match, with ``MATCH_SCHEMA``.
+        The canonical matches table (``schema.MATCH_COLUMNS``), validated.
     skipped_360 : tuple of str
         ``sb:`` ids of the matches whose 360 file is listed but unusable.
     """
@@ -749,7 +740,7 @@ def _frames_frame(cols: defaultdict[str, list[Any]]) -> pl.DataFrame:
 
 
 def load(checkout: StrPath, *, match_ids: Collection[int] | None = None) -> OpenData:
-    """Load a synced checkout into validated C3 ``shots`` / ``freeze_frames`` and ``matches``.
+    """Load a synced checkout into the validated C3 ``matches``, ``shots`` and ``freeze_frames``.
 
     Matches are read one at a time, in ``(competition_id, season_id, match_id)`` order.
     Shots are every Shot event (all periods, shoot-outs as period 5) plus every Own Goal
@@ -840,10 +831,20 @@ def load(checkout: StrPath, *, match_ids: Collection[int] | None = None) -> Open
             _add_match(row, entry, events, areas, shots, frames)
         for key, value in row.items():
             matches[key].append(value)
-    shot_table = schema.validate_shots(_shots_frame(shots))
+    n = len(matches["match_id"])
+    matches["provider"] = ["statsbomb"] * n
+    matches["schema_version"] = [schema.SCHEMA_VERSION] * n
+    frame = pl.DataFrame({k: matches[k] for k in schema.MATCH_SCHEMA})
+    match_table = schema.validate_matches(schema.cast_to_schema(frame, "matches"))
+    shot_table = schema.validate_shots(_shots_frame(shots), matches=match_table)
     frame_table = schema.validate_freeze_frames(_frames_frame(frames), shots=shot_table)
-    match_table = pl.DataFrame({k: matches[k] for k in MATCH_SCHEMA}, schema=MATCH_SCHEMA)
     return OpenData(shot_table, frame_table, match_table, tuple(skipped))
+
+
+# A null score never equals a goal count, so an unscored match is always reported.
+_DIFFERS: Final = pl.col("home_goals").ne_missing(pl.col("home_score").cast(pl.Int64)) | pl.col(
+    "away_goals"
+).ne_missing(pl.col("away_score").cast(pl.Int64))
 
 
 def reconcile_goals(shots: pl.DataFrame, matches: pl.DataFrame) -> pl.DataFrame:
@@ -862,7 +863,8 @@ def reconcile_goals(shots: pl.DataFrame, matches: pl.DataFrame) -> pl.DataFrame:
     -------
     polars.DataFrame
         ``match_id, home_score, away_score, home_goals, away_goals``, sorted by match; empty
-        when every match reconciles.
+        when every match reconciles. A match without a recorded score is always reported, so
+        callers filter unscored matches explicitly.
 
     Examples
     --------
@@ -886,10 +888,7 @@ def reconcile_goals(shots: pl.DataFrame, matches: pl.DataFrame) -> pl.DataFrame:
     return (
         matches.join(goals, on="match_id", how="left")
         .with_columns(pl.col("home_goals", "away_goals").fill_null(0))
-        .filter(
-            (pl.col("home_goals") != pl.col("home_score").cast(pl.Int64))
-            | (pl.col("away_goals") != pl.col("away_score").cast(pl.Int64))
-        )
+        .filter(_DIFFERS)
         .select("match_id", "home_score", "away_score", "home_goals", "away_goals")
         .sort("match_id")
     )

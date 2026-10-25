@@ -13,9 +13,9 @@ same inputs in the same environment therefore writes the same bytes and the same
 so it produces no git diff. The manifest's commit time in the consuming repo is its
 creation time.
 
-**Safety.** Shot and freeze-frame tables pass the C3 validators before anything touches the
-disk. The writer refuses to put data where git would not ignore it, stages every file and
-renames it into place with the manifest last, and checks that its reader accepts the
+**Safety.** Shot, freeze-frame and match tables pass the C3 validators before anything
+touches the disk. The writer refuses to put data where git would not ignore it, stages every
+file and renames it into place with the manifest last, and checks that its reader accepts the
 manifest it is about to commit.
 
 **Extension point.** A builder turns inputs into tables plus a ``Source``. Provider loaders
@@ -1071,8 +1071,9 @@ def write_snapshot(
     """Validate, sort and write tables as a snapshot plus its manifest.
 
     Data goes to ``<root>/data/snapshots/<name>/<table>.parquet`` and the manifest to
-    ``<root>/manifests/<name>.json``. A table named ``shots`` passes
-    ``schema.validate_shots``; ``freeze_frames`` passes ``schema.validate_freeze_frames``
+    ``<root>/manifests/<name>.json``. A table named ``matches`` passes
+    ``schema.validate_matches``; ``shots`` passes ``schema.validate_shots``, against those
+    matches when both are present; ``freeze_frames`` passes ``schema.validate_freeze_frames``
     against those shots (and needs them). Every check runs before anything is written.
 
     Parameters
@@ -1139,10 +1140,14 @@ def write_snapshot(
     keys = _check_sort_by(sort_by, frames)
     _check_values(frames)
 
-    # 2. Validate the canonical tables (shots first: the cross-table rules need them).
+    # 2. Validate the canonical tables, each before the one whose cross-table rules need it.
     validated = dict(frames)
+    if "matches" in frames:
+        validated["matches"] = schema.validate_matches(frames["matches"])
     if "shots" in frames:
-        validated["shots"] = schema.validate_shots(frames["shots"])
+        validated["shots"] = schema.validate_shots(
+            frames["shots"], matches=validated.get("matches")
+        )
     if "freeze_frames" in frames:
         validated["freeze_frames"] = schema.validate_freeze_frames(
             frames["freeze_frames"], shots=validated["shots"]

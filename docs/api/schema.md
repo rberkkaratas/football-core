@@ -1,7 +1,7 @@
 # schema
 
-The canonical **shot** table and the long-format **freeze-frame** table that every loader
-(StatsBomb in C4, WhoScored / Opta in C5) writes, with polars dtypes, pandera models and a
+The canonical **shot** table, the long-format **freeze-frame** table and the **matches**
+table that every loader (StatsBomb in C4, WhoScored / Opta in C5) writes, with polars dtypes, pandera models and a
 leakage role per column. Coordinates are canonical metres from [`pitch`](pitch.md): the
 shooting team attacks towards `x = 105`, `y = 0` is the shooter's right touchline.
 
@@ -78,7 +78,7 @@ provider-prefixed string (`sb:…` / `ws:…`) whose prefix matches `provider`.
 | 7 | `team_id` | String | no | id | identity | Team of the player who struck the ball (also for own goals). |
 | 8 | `opponent_team_id` | String | no | id | identity | The other team. |
 | 9 | `player_id` | String | no | id | identity | Player who struck the ball. |
-| 10 | `is_home` | Boolean | no |  | pre_shot | Whether team_id is the (nominal) home side. |
+| 10 | `is_home` | Boolean | no |  | pre_shot | Whether team_id is the home side (nominal at neutral venues). |
 | 11 | `period` | Int8 | no | {1, 2, 3, 4, 5} | pre_shot | Period: 1-2 regulation, 3-4 extra time, 5 penalty shoot-out. |
 | 12 | `minute` | Int16 | no | [0, 150] | pre_shot | Provider match-clock minute (period 2 starts at 45). |
 | 13 | `second` | Int8 | no | [0, 59] | pre_shot | Second within the minute. |
@@ -145,9 +145,43 @@ once per shot; at most one keeper per side per shot. With `validate_freeze_frame
 shots=shots)`, every `shot_id` must exist in `shots` and the shooter must not be in their own
 frame.
 
+## Matches table
+
+One row per match, provider-neutral, so StatsBomb (C4) and WhoScored (C5) fill the same
+table. Nothing in it is ever filled with a default. `gender` is the one `pre_shot` column:
+the shot models join it onto the shots by `match_id`
+(`column_names("matches", roles="pre_shot")`).
+
+| # | Column | Dtype | Null | Allowed / range | Role | Description |
+|---|---|---|---|---|---|---|
+| 1 | `match_id` | String | no | id, unique | identity | Provider match id, the primary key. |
+| 2 | `provider` | Enum(PROVIDERS) | no | statsbomb, whoscored | identity | Data source. |
+| 3 | `competition_id` | String | no | id | identity | Competition id. |
+| 4 | `season_id` | String | no | id | identity | Season id. |
+| 5 | `match_date` | Date | no |  | identity | Match date, as in the shots table. |
+| 6 | `home_team_id` | String | no | id | identity | Home side as the provider lists it (nominal at neutral venues); shots.is_home refers to it. |
+| 7 | `away_team_id` | String | no | id | identity | The other team. |
+| 8 | `competition_name` | String | no | check `non_empty` | identity | Competition name, a label for cards. |
+| 9 | `season_name` | String | no | check `non_empty` | identity | Season as football writes it ('2015/2016', '2026'), a label for cards. |
+| 10 | `gender` | Enum(GENDERS) | no | male, female | pre_shot | Men's or women's football, known before kick-off. |
+| 11 | `home_score` | Int16 | yes | [0, 99] | outcome | Recorded final score without the shoot-out; null when the provider gives none. |
+| 12 | `away_score` | Int16 | yes | [0, 99] | outcome | As home_score. |
+| 13 | `has_360` | Boolean | yes |  | lineage | A usable StatsBomb 360 file; null for every other provider. |
+| 14 | `schema_version` | String | no | check `schema_version` | lineage | Schema version the row was written with. |
+
+Columns 1-5 and 14 have the same name, dtype and role as in `shots`; no `pre_shot` matches
+column shares a name with a shots column.
+
+Rules (`MATCH_RULES`): the match, competition, season and team ids start with the provider's
+prefix; the two teams differ; `home_score` and `away_score` are both set or both null;
+`has_360` is set for StatsBomb rows and null for every other provider. With
+`validate_shots(shots, matches=matches)`, every shot's `match_id` must exist in `matches`
+(`match_exists`), and its competition, season, date and team pair (home / away read from
+`is_home`) must equal that match's row (`shot_agrees_with_match`).
+
 ## Validation and errors
 
-`validate_shots` / `validate_freeze_frames` never cast. Pass 1 checks structure (missing and
+`validate_shots` / `validate_freeze_frames` / `validate_matches` never cast. Pass 1 checks structure (missing and
 extra columns, dtypes, and the invalid values of a mis-typed enum column); pass 2 checks
 nulls, ranges, finiteness, uniqueness, id / JSON / polygon / version formats, and then the
 rules. Pass 2 runs only when pass 1 finds nothing. Both passes pin pandera's config, so
@@ -155,7 +189,7 @@ rules. Pass 2 runs only when pass 1 finds nothing. Both passes pin pandera's con
 problem, naming the column and the bad values:
 
 ```text
-shots: 2 schema problem(s) (schema 1.0)
+shots: 2 schema problem(s) (schema 1.1)
   - column 'shot_id': duplicate value(s) 'sb:a1' (rows 0, 1)
   - rule 'is_goal_matches_outcome' (shot_id, is_goal, outcome): is_goal must equal outcome == 'goal'; failed for shot_id='sb:a2', is_goal=False, outcome='goal' (rows 2)
 ```
@@ -168,9 +202,14 @@ shots: 2 schema problem(s) (schema 1.0)
 
 ## Versioning
 
-`SCHEMA_VERSION = "1.0"` (`MAJOR.MINOR`), written on every row and checked exactly. A MINOR
+`SCHEMA_VERSION = "1.1"` (`MAJOR.MINOR`), written on every row and checked exactly. A MINOR
 bump adds a nullable column or a rule that every existing snapshot satisfies. A MAJOR bump
 removes or renames a column, changes a dtype, changes **any** enum's categories, changes a
 column's role or tightens a range.
+
+Adding a canonical table is a MINOR bump. Snapshots that hold a table of that name without a
+schema (`schema: null`) are refused by the manifest reader and must be rebuilt, never
+migrated: a 1.0 `matches` table (String `gender`, `schema: null`) is rebuilt from the raw
+data. 1.1 added the matches table; no existing enum changed.
 
 ::: football_core.schema

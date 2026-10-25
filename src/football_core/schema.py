@@ -1,7 +1,10 @@
-"""Canonical shot and freeze-frame tables: polars dtypes, pandera models and column roles.
+"""Canonical shot, freeze-frame and match tables: polars dtypes, pandera models and roles.
 
-Every loader (StatsBomb, WhoScored / Opta) writes the same two tables, so models, charts and
-snapshots never care where a shot came from. This module is the contract between them.
+Every loader (StatsBomb, WhoScored / Opta) writes the same three tables, so models, charts and
+snapshots never care where a shot came from. This module is the contract between them. The
+matches table holds one row per match: the keys every shot repeats, the labels the cards
+print, and match-level inputs known before kick-off (``gender``). ``validate_shots(df,
+matches=...)`` checks that each shot agrees with its match.
 
 **One source of truth.** Each table is a tuple of :class:`ColumnSpec` records. The polars
 schema, the pandera model, the docs tables and the leakage roles are all derived from it.
@@ -61,11 +64,11 @@ from pandera.errors import SchemaErrors
 
 from football_core import pitch
 
-Table = Literal["shots", "freeze_frames"]
+Table = Literal["shots", "freeze_frames", "matches"]  # TABLES order is message order
 Role = Literal["identity", "pre_shot", "post_shot", "outcome", "restricted", "lineage"]
 RuleCheck = Callable[[pl.DataFrame], pl.Series]
 
-SCHEMA_VERSION: Final[str] = "1.0"
+SCHEMA_VERSION: Final[str] = "1.1"
 TABLES: Final[tuple[Table, ...]] = get_args(Table)
 ROLES: Final[tuple[Role, ...]] = get_args(Role)
 
@@ -95,6 +98,7 @@ TECHNIQUES: Final = (
     "overhead_kick",
 )
 OUTCOMES: Final = ("goal", "saved", "blocked", "post", "off_target")
+GENDERS: Final = ("male", "female")  # male first: the indicator reference
 
 PROVIDER: Final = pl.Enum(PROVIDERS)
 BODY_PART: Final = pl.Enum(BODY_PARTS)
@@ -102,6 +106,7 @@ SITUATION: Final = pl.Enum(SITUATIONS)
 ASSIST_TYPE: Final = pl.Enum(ASSIST_TYPES)
 TECHNIQUE: Final = pl.Enum(TECHNIQUES)
 OUTCOME: Final = pl.Enum(OUTCOMES)
+GENDER: Final = pl.Enum(GENDERS)
 POLYGON: Final = pl.List(pl.Array(pl.Float64(), 2))
 
 ID_PREFIXES: Final[Mapping[str, str]] = MappingProxyType({"statsbomb": "sb:", "whoscored": "ws:"})
@@ -184,7 +189,7 @@ class FrameRule:
     name : str
         Rule name, used as ``Failure.check``.
     columns : tuple of str
-        Columns shown in the failure message, ``shot_id`` first.
+        Columns shown in the failure message, the table's key first.
     description : str
         The rule in words.
     check : callable
@@ -207,7 +212,7 @@ class Failure:
     Attributes
     ----------
     table : str
-        ``"shots"`` or ``"freeze_frames"``.
+        One of ``TABLES``.
     columns : tuple of str
         ``(column,)`` for a column check, the rule's columns for a rule. Never empty.
     check : str
@@ -283,7 +288,7 @@ SHOT_COLUMNS: Final[tuple[ColumnSpec, ...]] = (
     ColumnSpec("player_id", pl.String(), "identity", False,
                "Player who struck the ball.", is_id=True),
     ColumnSpec("is_home", pl.Boolean(), "pre_shot", False,
-               "Whether team_id is the (nominal) home side."),
+               "Whether team_id is the home side (nominal at neutral venues)."),
     ColumnSpec("period", pl.Int8(), "pre_shot", False,
                "Period: 1-2 regulation, 3-4 extra time, 5 penalty shoot-out.",
                allowed=(1, 2, 3, 4, 5)),
@@ -369,8 +374,39 @@ FREEZE_FRAME_COLUMNS: Final[tuple[ColumnSpec, ...]] = (
 )
 # fmt: on
 
+# fmt: off
+MATCH_COLUMNS: Final[tuple[ColumnSpec, ...]] = (
+    ColumnSpec("match_id", pl.String(), "identity", False,
+               "Provider match id, the primary key.", is_id=True, unique=True),
+    ColumnSpec("provider", PROVIDER, "identity", False, "Data source."),
+    ColumnSpec("competition_id", pl.String(), "identity", False,
+               "Competition id.", is_id=True),
+    ColumnSpec("season_id", pl.String(), "identity", False, "Season id.", is_id=True),
+    ColumnSpec("match_date", pl.Date(), "identity", False, "Match date, as in the shots table."),
+    ColumnSpec("home_team_id", pl.String(), "identity", False,
+               "Home side as the provider lists it (nominal at neutral venues); "
+               "shots.is_home refers to it.", is_id=True),
+    ColumnSpec("away_team_id", pl.String(), "identity", False, "The other team.", is_id=True),
+    ColumnSpec("competition_name", pl.String(), "identity", False,
+               "Competition name, a label for cards."),
+    ColumnSpec("season_name", pl.String(), "identity", False,
+               "Season as football writes it ('2015/2016', '2026'), a label for cards."),
+    ColumnSpec("gender", GENDER, "pre_shot", False,
+               "Men's or women's football, known before kick-off."),
+    ColumnSpec("home_score", pl.Int16(), "outcome", True,
+               "Recorded final score without the shoot-out; null when the provider gives none.",
+               ge=0.0, le=99.0),
+    ColumnSpec("away_score", pl.Int16(), "outcome", True, "As home_score.", ge=0.0, le=99.0),
+    ColumnSpec("has_360", pl.Boolean(), "lineage", True,
+               "A usable StatsBomb 360 file; null for every other provider "
+               "(rule has_360_matches_provider)."),
+    ColumnSpec("schema_version", pl.String(), "lineage", False,
+               "Schema version the row was written with."),
+)
+# fmt: on
+
 _SPECS: Final[Mapping[Table, tuple[ColumnSpec, ...]]] = MappingProxyType(
-    {"shots": SHOT_COLUMNS, "freeze_frames": FREEZE_FRAME_COLUMNS}
+    {"shots": SHOT_COLUMNS, "freeze_frames": FREEZE_FRAME_COLUMNS, "matches": MATCH_COLUMNS}
 )
 _SPECS_BY_NAME: Final[Mapping[Table, Mapping[str, ColumnSpec]]] = MappingProxyType(
     {table: {spec.name: spec for spec in specs} for table, specs in _SPECS.items()}
@@ -379,6 +415,8 @@ _SPECS_BY_NAME: Final[Mapping[Table, Mapping[str, ColumnSpec]]] = MappingProxyTy
 _SPECIAL_CHECKS: Final[Mapping[str, str]] = MappingProxyType(
     {
         "raw_type": "non_empty",
+        "competition_name": "non_empty",
+        "season_name": "non_empty",
         "raw_qualifiers": "json",
         "schema_version": "schema_version",
         "visible_area": "polygon",
@@ -490,10 +528,12 @@ SHOT_SCHEMA: Final[pl.Schema] = pl.Schema({spec.name: spec.dtype for spec in SHO
 FREEZE_FRAME_SCHEMA: Final[pl.Schema] = pl.Schema(
     {spec.name: spec.dtype for spec in FREEZE_FRAME_COLUMNS}
 )
-# Column-level only: use validate_shots / validate_freeze_frames, which add the frame rules
-# and pin the pandera config.
+MATCH_SCHEMA: Final[pl.Schema] = pl.Schema({spec.name: spec.dtype for spec in MATCH_COLUMNS})
+# Column-level only: use the validate_* functions, which add the frame rules and pin the
+# pandera config.
 SHOT_MODEL: Final[pa.DataFrameSchema] = _model("shots")
 FREEZE_FRAME_MODEL: Final[pa.DataFrameSchema] = _model("freeze_frames")
+MATCH_MODEL: Final[pa.DataFrameSchema] = _model("matches")
 
 
 # --- Frame rules (evaluated here, not inside pandera) ----------------------------------------
@@ -508,12 +548,12 @@ def _text(column: str) -> pl.Expr:
     return pl.col(column).cast(pl.String)
 
 
-def _ids_match_provider(df: pl.DataFrame) -> pl.Series:
+def _ids_match_provider(df: pl.DataFrame, columns: tuple[str, ...]) -> pl.Series:
     prefix = _text("provider").replace_strict(
         dict(ID_PREFIXES), default=None, return_dtype=pl.String
     )
     ok = pl.lit(True)
-    for column in _SHOT_ID_COLUMNS:
+    for column in columns:
         # Malformed ids are id_format's job; this rule judges well-formed ones only.
         judged = pl.col(column).str.contains(ID_PATTERN) & prefix.is_not_null()
         ok = ok & (~judged | pl.col(column).str.starts_with(prefix)).fill_null(True)
@@ -571,7 +611,8 @@ _ON_TARGET_EXPECTED = _OUTCOME.is_in(sorted(ON_TARGET_OUTCOMES)) & ~pl.col("is_o
 # fmt: off
 SHOT_RULES: Final[tuple[FrameRule, ...]] = (
     _rule("ids_match_provider", ("shot_id", "provider", *_SHOT_ID_COLUMNS[1:]),
-          "every id must start with the provider's prefix", _ids_match_provider),
+          "every id must start with the provider's prefix",
+          partial(_ids_match_provider, columns=_SHOT_ID_COLUMNS)),
     _rule("distinct_teams", ("shot_id", "team_id", "opponent_team_id"),
           "team_id must differ from opponent_team_id", _distinct_teams),
     _rule("distance_matches_pitch", ("shot_id", "x", "y", "distance_m"),
@@ -630,16 +671,49 @@ FREEZE_FRAME_RULES: Final[tuple[FrameRule, ...]] = (
 )
 # fmt: on
 
-# Cross-table rules (validate_freeze_frames with shots=): name -> (columns, description).
-_CROSS_TABLE_RULES: Final[Mapping[str, tuple[tuple[str, ...], str]]] = MappingProxyType(
-    {
-        "shot_exists": (("shot_id",), "shot_id must exist in shots.shot_id"),
-        "shooter_not_in_frame": (
-            ("shot_id", "player_id"),
-            "the shooter must not appear in the shot's own freeze frame",
-        ),
-    }
+_MATCH_ID_COLUMNS: Final = tuple(spec.name for spec in MATCH_COLUMNS if spec.is_id)
+_HAS_360_OK = pl.col("has_360").is_not_null() == (pl.col("provider") == "statsbomb")
+
+# fmt: off
+MATCH_RULES: Final[tuple[FrameRule, ...]] = (
+    _rule("ids_match_provider", ("match_id", "provider", *_MATCH_ID_COLUMNS[1:]),
+          "match, competition, season and team ids must start with the provider's prefix",
+          partial(_ids_match_provider, columns=_MATCH_ID_COLUMNS)),
+    _expr_rule("distinct_teams", ("match_id", "home_team_id", "away_team_id"),
+               "home_team_id must differ from away_team_id",
+               pl.col("home_team_id") != pl.col("away_team_id")),
+    _expr_rule("scores_both_or_neither", ("match_id", "home_score", "away_score"),
+               "home_score and away_score must both be set or both be null",
+               pl.col("home_score").is_null() == pl.col("away_score").is_null()),
+    _expr_rule("has_360_matches_provider", ("match_id", "provider", "has_360"),
+               "has_360 must be set for statsbomb rows and null for every other provider",
+               _HAS_360_OK),
 )
+# fmt: on
+
+# Cross-table rules, keyed by the table they validate: name -> (columns, description).
+# validate_freeze_frames runs its own with shots=, validate_shots its own with matches=.
+_AGREES_COLUMNS: Final = (
+    *("shot_id", "match_id", "competition_id", "season_id", "match_date"),
+    *("team_id", "opponent_team_id", "is_home"),
+)
+# fmt: off
+_CROSS_TABLE_RULES: Final[Mapping[Table, Mapping[str, tuple[tuple[str, ...], str]]]] = (
+    MappingProxyType({
+        "freeze_frames": MappingProxyType({
+            "shot_exists": (("shot_id",), "shot_id must exist in shots.shot_id"),
+            "shooter_not_in_frame": (("shot_id", "player_id"),
+                                     "the shooter must not appear in the shot's own freeze frame"),
+        }),
+        "shots": MappingProxyType({
+            "match_exists": (("shot_id", "match_id"), "match_id must exist in matches.match_id"),
+            "shot_agrees_with_match": (_AGREES_COLUMNS,
+                                       "competition, season, date and the team pair (home/away "
+                                       "from is_home) must equal the shot's matches row"),
+        }),
+    })
+)
+# fmt: on
 
 
 def _shot_exists(df: pl.DataFrame, keys: pl.DataFrame) -> pl.Series:
@@ -651,6 +725,27 @@ def _shooter_not_in_frame(df: pl.DataFrame, keys: pl.DataFrame) -> pl.Series:
     shooters = keys.drop_nulls().select(pl.struct("shot_id", "player_id")).to_series()
     in_shots = pl.struct("shot_id", "player_id").is_in(shooters.implode())
     return _mask(df, ~_FF_KEYS_OK | ~in_shots)
+
+
+_MATCH_KEYS: Final = ("match_id", "competition_id", "season_id", "match_date")
+_HOME = pl.when(pl.col("is_home")).then(pl.col("team_id")).otherwise(pl.col("opponent_team_id"))
+_AWAY = pl.when(pl.col("is_home")).then(pl.col("opponent_team_id")).otherwise(pl.col("team_id"))
+_SHOT_MATCH = pl.struct(*_MATCH_KEYS, _HOME.alias("home_team_id"), _AWAY.alias("away_team_id"))
+# A struct is_in with a null field is False, not null: mask null keys so they pass.
+_SHOT_KEYS_OK = pl.all_horizontal(
+    pl.col(*_MATCH_KEYS, "team_id", "opponent_team_id", "is_home").is_not_null()
+)
+
+
+def _match_exists(df: pl.DataFrame, keys: pl.DataFrame) -> pl.Series:
+    known = keys["match_id"].drop_nulls().unique()
+    return _mask(df, pl.col("match_id").is_in(known.implode()))
+
+
+def _shot_agrees_with_match(df: pl.DataFrame, keys: pl.DataFrame) -> pl.Series:
+    known = keys.select(pl.struct(*_MATCH_KEYS, "home_team_id", "away_team_id")).to_series()
+    exists = pl.col("match_id").is_in(keys["match_id"].drop_nulls().implode())
+    return _mask(df, ~_SHOT_KEYS_OK | ~exists | _SHOT_MATCH.is_in(known.implode()))
 
 
 # --- Rendering -------------------------------------------------------------------------------
@@ -711,13 +806,14 @@ def _bound(value: float | None, default: str) -> str:
     return default if value is None else repr(value)
 
 
-def _rule_description(name: str) -> str:
-    rules = globals()["SHOT_RULES"] + globals()["FREEZE_FRAME_RULES"]
-    for rule in rules:
+def _rule_description(table: Table, name: str) -> str:
+    # Only this table's rules: shots and matches both have a distinct_teams rule.
+    for rule in globals()[_RULES_NAME[table]]:
         if rule.name == name:
             return str(rule.description)
-    if name in _CROSS_TABLE_RULES:
-        return _CROSS_TABLE_RULES[name][1]
+    cross = _CROSS_TABLE_RULES.get(table, {})
+    if name in cross:
+        return cross[name][1]
     return "rule failed"
 
 
@@ -727,7 +823,7 @@ def _format_failure(failure: Failure) -> str:
         row = ", ".join(f"{c}={v}" for c, v in zip(failure.columns, failure.values, strict=False))
         columns = ", ".join(failure.columns)
         return (
-            f"rule '{check}' ({columns}): {_rule_description(check)}; "
+            f"rule '{check}' ({columns}): {_rule_description(failure.table, check)}; "
             f"failed for {row} {_rows_text(failure)}"
         )
     column = failure.columns[0]
@@ -931,11 +1027,17 @@ def _ordered(table: Table, df: pl.DataFrame, failures: list[Failure]) -> list[Fa
     return sorted(failures, key=key)
 
 
+# Module globals read at call time, so a monkeypatched model or rule tuple is the one that runs.
+_MODEL_NAME: Final[Mapping[Table, str]] = MappingProxyType(
+    {"shots": "SHOT_MODEL", "freeze_frames": "FREEZE_FRAME_MODEL", "matches": "MATCH_MODEL"}
+)
+_RULES_NAME: Final[Mapping[Table, str]] = MappingProxyType(
+    {"shots": "SHOT_RULES", "freeze_frames": "FREEZE_FRAME_RULES", "matches": "MATCH_RULES"}
+)
+
+
 def _current_model(table: Table) -> pa.DataFrameSchema:
-    # Read the module global at call time, so a monkeypatched model is the one that runs.
-    model: pa.DataFrameSchema = globals()[
-        "SHOT_MODEL" if table == "shots" else "FREEZE_FRAME_MODEL"
-    ]
+    model: pa.DataFrameSchema = globals()[_MODEL_NAME[table]]
     return model
 
 
@@ -974,7 +1076,7 @@ def column_names(
 
     Parameters
     ----------
-    table : {"shots", "freeze_frames"}, default "shots"
+    table : {"shots", "freeze_frames", "matches"}, default "shots"
         The table.
     roles : str or collection of str, optional
         One role, or several (their union, still in canonical order). ``None`` returns every
@@ -996,6 +1098,8 @@ def column_names(
     ('is_teammate', 'is_keeper', 'x', 'y')
     >>> column_names("shots", roles="restricted")
     ('big_chance',)
+    >>> column_names("matches", roles="pre_shot")
+    ('gender',)
     """
     specs = _SPECS[_check_table(table)]
     if roles is None:
@@ -1044,9 +1148,28 @@ def empty_freeze_frames() -> pl.DataFrame:
     return pl.DataFrame(schema=FREEZE_FRAME_SCHEMA)
 
 
+def empty_matches() -> pl.DataFrame:
+    """An empty matches table with the canonical columns and dtypes.
+
+    Returns
+    -------
+    polars.DataFrame
+        Zero rows; validates.
+
+    Examples
+    --------
+    >>> empty_matches().shape
+    (0, 14)
+    >>> validate_matches(empty_matches()).height
+    0
+    """
+    return pl.DataFrame(schema=MATCH_SCHEMA)
+
+
 _INT_RANGES: Final[Mapping[str, tuple[int, int]]] = MappingProxyType(
     {"Int8": (-(2**7), 2**7 - 1), "Int16": (-(2**15), 2**15 - 1)}
 )
+_ISO_DATE: Final[str] = r"^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
 
 
 def _is_numeric_list(dtype: pl.DataType) -> bool:
@@ -1086,8 +1209,10 @@ def _cast_column(table: Table, series: pl.Series, target: pl.DataType) -> pl.Ser
             return _row_failure(table, name, "cast", series, indices, leading=(str(source),))
         return series.cast(target, strict=True)
     if target == pl.Date() and source == pl.String():
+        # The pattern too: a lenient parse reads '24-01-05' as the year 24.
         parsed = series.str.to_date("%Y-%m-%d", strict=False)
-        indices = (parsed.is_null() & series.is_not_null()).arg_true().to_list()
+        bad = series.is_not_null() & (parsed.is_null() | ~series.str.contains(_ISO_DATE))
+        indices = bad.arg_true().to_list()
         if indices:
             return _row_failure(table, name, "cast", series, indices, leading=(str(source),))
         return parsed
@@ -1114,7 +1239,8 @@ def cast_to_schema(df: pl.DataFrame, table: Table = "shots") -> pl.DataFrame:
     For loaders and test fixtures that build frames from strings or plain lists. Extra
     columns are dropped. Accepted casts: String / Categorical / Enum to an Enum (values outside
     the vocabulary are named); any integer or float to Float64; integers to Int8 / Int16
-    after a range check (floats are refused); ISO ``YYYY-MM-DD`` strings to Date; nested
+    after a range check (floats are refused); ISO ``YYYY-MM-DD`` strings to Date (anything
+    else, such as ``'24-01-05'`` or ``'2024-02-30'``, is a ``cast`` failure); nested
     numeric lists of vertex pairs to the polygon dtype; an all-null (``Null``) column to
     anything. Ranges, nulls and rules are **not** checked: call ``validate_*`` afterwards.
 
@@ -1122,7 +1248,7 @@ def cast_to_schema(df: pl.DataFrame, table: Table = "shots") -> pl.DataFrame:
     ----------
     df : polars.DataFrame
         Input frame; not modified.
-    table : {"shots", "freeze_frames"}, default "shots"
+    table : {"shots", "freeze_frames", "matches"}, default "shots"
         Target table.
 
     Returns
@@ -1165,7 +1291,7 @@ def cast_to_schema(df: pl.DataFrame, table: Table = "shots") -> pl.DataFrame:
     return pl.DataFrame(columns)
 
 
-def validate_shots(df: pl.DataFrame) -> pl.DataFrame:
+def validate_shots(df: pl.DataFrame, matches: pl.DataFrame | None = None) -> pl.DataFrame:
     """Validate a shot table and return it in canonical column order.
 
     Pass 1 checks structure (missing / extra columns, dtypes and the invalid values of
@@ -1174,10 +1300,85 @@ def validate_shots(df: pl.DataFrame) -> pl.DataFrame:
     The input is never cast or modified, and pandera's global or environment config cannot
     switch any of this off.
 
+    When ``matches`` is given, two cross-table rules follow: every ``match_id`` exists there
+    (``match_exists``), and each shot's competition, season, date and team pair equal its
+    match's (``shot_agrees_with_match``; home and away come from ``is_home``). ``matches``
+    itself is not validated (use :func:`validate_matches` first); only its six key columns
+    are read.
+
     Parameters
     ----------
     df : polars.DataFrame
         Shot table; any column order.
+    matches : polars.DataFrame, optional
+        The matching matches table, for the cross-table rules.
+
+    Returns
+    -------
+    polars.DataFrame
+        ``df`` with its columns in canonical order.
+
+    Raises
+    ------
+    TypeError
+        If ``df`` is not a polars DataFrame, or ``matches`` is neither None nor one.
+    ValueError
+        If ``matches`` lacks a key column or has it with the wrong dtype (String ids, Date
+        ``match_date``).
+    SchemaValidationError
+        Listing every failure found by the pass that failed; rule rows are shot row positions.
+    RuntimeError
+        Only if a check or rule itself is broken; never for bad data.
+
+    Examples
+    --------
+    >>> validate_shots(empty_shots(), matches=empty_matches()).height
+    0
+    >>> try:
+    ...     validate_shots(empty_shots().drop("x"))
+    ... except SchemaValidationError as err:
+    ...     print(err.failures[0].check, err.failures[0].columns)
+    missing ('x',)
+    """
+    _require_frame(df, "validate_shots")
+    cross: list[FrameRule] = []
+    if matches is not None:
+        keys = _match_keys(matches)
+        checks = {"match_exists": _match_exists, "shot_agrees_with_match": _shot_agrees_with_match}
+        for name, (columns, description) in _CROSS_TABLE_RULES["shots"].items():
+            cross.append(_rule(name, columns, description, partial(checks[name], keys=keys)))
+    return _validate("shots", df, globals()["SHOT_RULES"], cross)
+
+
+def _match_keys(matches: object) -> pl.DataFrame:
+    if not isinstance(matches, pl.DataFrame):
+        raise TypeError(
+            f"validate_shots expects matches to be a polars DataFrame or None, "
+            f"got {type(matches).__name__}"
+        )
+    columns = (*_MATCH_KEYS, "home_team_id", "away_team_id")
+    for column in columns:
+        expected = pl.Date() if column == "match_date" else pl.String()
+        if column not in matches.columns:
+            raise ValueError(f"matches has no column '{column}'; it needs {', '.join(columns)}")
+        if matches.schema[column] != expected:
+            raise ValueError(
+                f"matches column '{column}' has dtype {matches.schema[column]}, expected {expected}"
+            )
+    return matches.select(columns).unique()
+
+
+def validate_matches(df: pl.DataFrame) -> pl.DataFrame:
+    """Validate a matches table and return it in canonical column order.
+
+    The same two passes as :func:`validate_shots`, with ``MATCH_RULES``: ids under the
+    provider's prefix, two different teams, both scores or neither, and ``has_360`` set
+    exactly on StatsBomb rows. ``match_id`` is unique.
+
+    Parameters
+    ----------
+    df : polars.DataFrame
+        Matches table; any column order.
 
     Returns
     -------
@@ -1195,16 +1396,21 @@ def validate_shots(df: pl.DataFrame) -> pl.DataFrame:
 
     Examples
     --------
-    >>> validate_shots(empty_shots()).height
-    0
+    >>> from datetime import date
+    >>> row = {"match_id": ["ws:1"], "provider": ["whoscored"], "competition_id": ["ws:2"],
+    ...        "season_id": ["ws:3"], "match_date": [date(2026, 8, 7)],
+    ...        "home_team_id": ["ws:4"], "away_team_id": ["ws:4"],
+    ...        "competition_name": ["Championship"], "season_name": ["2026/2027"],
+    ...        "gender": ["male"], "home_score": [None], "away_score": [None],
+    ...        "has_360": [None], "schema_version": [SCHEMA_VERSION]}
     >>> try:
-    ...     validate_shots(empty_shots().drop("x"))
+    ...     validate_matches(cast_to_schema(pl.DataFrame(row), "matches"))
     ... except SchemaValidationError as err:
-    ...     print(err.failures[0].check, err.failures[0].columns)
-    missing ('x',)
+    ...     print([f.check for f in err.failures])
+    ['distinct_teams']
     """
-    _require_frame(df, "validate_shots")
-    return _validate("shots", df, globals()["SHOT_RULES"])
+    _require_frame(df, "validate_matches")
+    return _validate("matches", df, globals()["MATCH_RULES"])
 
 
 def _shot_keys(shots: object) -> pl.DataFrame:
@@ -1265,6 +1471,6 @@ def validate_freeze_frames(df: pl.DataFrame, shots: pl.DataFrame | None = None) 
     if shots is not None:
         keys = _shot_keys(shots)
         checks = {"shot_exists": _shot_exists, "shooter_not_in_frame": _shooter_not_in_frame}
-        for name, (columns, description) in _CROSS_TABLE_RULES.items():
+        for name, (columns, description) in _CROSS_TABLE_RULES["freeze_frames"].items():
             cross.append(_rule(name, columns, description, partial(checks[name], keys=keys)))
     return _validate("freeze_frames", df, globals()["FREEZE_FRAME_RULES"], cross)

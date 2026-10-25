@@ -22,6 +22,8 @@ PUBLIC_FUNCTIONS = (
     "cast_to_schema",
     "validate_shots",
     "validate_freeze_frames",
+    "empty_matches",
+    "validate_matches",
 )
 
 
@@ -70,14 +72,19 @@ def _dtype_aliases(dtype: pl.DataType) -> set[str]:
 def tables() -> list[list[dict[str, str]]]:
     assert DOCS_PAGE.exists(), "docs/api/schema.md is missing"
     found = _column_tables(DOCS_PAGE.read_text(encoding="utf-8"))
-    assert len(found) == 2, f"expected 2 column tables (shots, freeze_frames), got {len(found)}"
+    expected = "3 column tables (shots, freeze_frames, matches)"
+    assert len(found) == 3, f"expected {expected}, got {len(found)}"
     return found
 
 
 @pytest.mark.parametrize(
     ("index", "specs"),
-    [(0, lambda: schema.SHOT_COLUMNS), (1, lambda: schema.FREEZE_FRAME_COLUMNS)],
-    ids=["shots", "freeze_frames"],
+    [
+        (0, lambda: schema.SHOT_COLUMNS),
+        (1, lambda: schema.FREEZE_FRAME_COLUMNS),
+        (2, lambda: schema.MATCH_COLUMNS),
+    ],
+    ids=["shots", "freeze_frames", "matches"],
 )
 def test_docs_tables_match_column_specs(tables, index: int, specs) -> None:
     rows = tables[index]
@@ -128,3 +135,39 @@ def test_schema_module_is_not_reexported() -> None:
     import football_core
 
     assert not hasattr(football_core, "validate_shots")
+
+
+def _section(text: str, heading: str) -> str:
+    start = text.index(f"\n## {heading}\n")
+    end = min(i for i in (text.find("\n## ", start + 1), text.find("\n::: ", start)) if i > 0)
+    return text[start:end]
+
+
+def test_docs_enum_dtypes_name_the_vocabulary_constant(tables) -> None:
+    # MS3.matches build ratify 7: an Enum column's dtype cell is `Enum(<schema constant>)`, the
+    # public vocabulary name (Enum(PROVIDERS), Enum(GENDERS)); not the spec's lower-case
+    # spelling and not the polars repr, which the column-spec test also accepts.
+    specs = (schema.SHOT_COLUMNS, schema.FREEZE_FRAME_COLUMNS, schema.MATCH_COLUMNS)
+    seen = 0
+    for rows, columns in zip(tables, specs, strict=True):
+        for row, spec in zip(rows, columns, strict=True):
+            if not isinstance(spec.dtype, pl.Enum):
+                continue
+            seen += 1
+            found = re.fullmatch(r"Enum\(([A-Z_]+)\)", row["dtype"])
+            assert found, (spec.name, row["dtype"])
+            vocab = getattr(schema, found.group(1), None)
+            assert vocab == tuple(spec.dtype.categories.to_list()), (spec.name, row["dtype"])
+    assert seen >= 8  # 6 shots enums + provider and gender in matches
+
+
+def test_docs_versioning_states_the_current_version() -> None:
+    # MS3.matches build ratify 8: the Versioning section and the error example carry the
+    # current SCHEMA_VERSION and the rule that adding a canonical table is a MINOR bump.
+    text = DOCS_PAGE.read_text(encoding="utf-8")
+    versioning = _section(text, "Versioning")
+    assert f'`SCHEMA_VERSION = "{schema.SCHEMA_VERSION}"`' in versioning
+    assert "Adding a canonical table is a MINOR bump" in versioning
+    errors = _section(text, "Validation and errors")
+    assert f"(schema {schema.SCHEMA_VERSION})" in errors
+    assert "validate_matches" in errors

@@ -524,24 +524,30 @@ def test_bad_match_entry_raises(tmp_path: Path, case: str) -> None:
 
 
 def test_matches_table(sb_standard: Any) -> None:
-    assert dict(statsbomb.MATCH_SCHEMA) == sbc.MATCH_DTYPES
+    # MS3.matches: the canonical table of football_core.schema, no alias left in the loader
+    assert list(schema.MATCH_SCHEMA.items()) == list(sbc.MATCH_DTYPES.items())
+    assert not hasattr(statsbomb, "MATCH_SCHEMA")
     matches = sb_standard.matches.sort("match_id")
-    assert matches.schema == statsbomb.MATCH_SCHEMA
+    assert matches.schema == schema.MATCH_SCHEMA
     assert matches.null_count().sum_horizontal().item() == 0
     assert matches.to_dict(as_series=False) == {
         "match_id": ["sb:900001", "sb:900002", "sb:900003"],
+        "provider": ["statsbomb"] * 3,
         "competition_id": ["sb:9001"] * 3,
         "season_id": ["sb:9002"] * 3,
+        "match_date": [dt.date(2024, 1, 6), dt.date(2024, 1, 7), dt.date(2024, 1, 13)],
         "home_team_id": ["sb:101"] * 3,
         "away_team_id": ["sb:202"] * 3,
         "competition_name": ["Fixture League"] * 3,
         "season_name": ["2023/2024"] * 3,
         "gender": ["male", "male", "female"],
-        "match_date": [dt.date(2024, 1, 6), dt.date(2024, 1, 7), dt.date(2024, 1, 13)],
         "home_score": [3, 0, 0],
         "away_score": [1, 1, 0],
         "has_360": [True, False, False],
+        "schema_version": [schema.SCHEMA_VERSION] * 3,
     }
+    schema.validate_matches(matches)
+    schema.validate_shots(sb_standard.shots, matches=matches)  # the shots agree with it
     assert sb_standard.skipped_360 == ()
 
 

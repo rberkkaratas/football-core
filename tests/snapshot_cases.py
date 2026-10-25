@@ -23,6 +23,7 @@ import polars as pl
 import pytest
 import schema_cases
 
+from football_core import schema
 from football_core.io import snapshot
 
 NAN, INF = float("nan"), float("inf")
@@ -312,7 +313,7 @@ def base_manifest() -> dict[str, Any]:
         "manifest_version": 1,
         "name": "demo",
         "builder": "parquet",
-        "schema_version": "1.0",
+        "schema_version": schema.SCHEMA_VERSION,
         "data_dir": "../data/snapshots/demo",
         "data_digest": sha256sum_digest((f["path"], f["sha256"]) for f in files),
         "source": {

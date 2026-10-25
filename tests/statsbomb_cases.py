@@ -677,13 +677,16 @@ SHOT_ROWS = 17  # A: 11 Shot + 1 OGA; B: 4 Shot + 1 OGA (Own Goal For ignored)
 FREEZE_FRAME_ROWS = 37  # A: 4 + 9 x 3 (penalty dropped); B: 2 x 3 (shoot-out dropped)
 
 
-# MATCH_SCHEMA (spec §2.5), typed by hand
+# The canonical matches table (MS3.matches spec §2), typed by hand in canonical order so the
+# tests check the code against an independent table.
 # fmt: off
 MATCH_DTYPES = {
-    "match_id": pl.String(), "competition_id": pl.String(), "season_id": pl.String(),
+    "match_id": pl.String(), "provider": pl.Enum(("statsbomb", "whoscored")),
+    "competition_id": pl.String(), "season_id": pl.String(), "match_date": pl.Date(),
     "home_team_id": pl.String(), "away_team_id": pl.String(), "competition_name": pl.String(),
-    "season_name": pl.String(), "gender": pl.String(), "match_date": pl.Date(),
+    "season_name": pl.String(), "gender": pl.Enum(("male", "female")),
     "home_score": pl.Int16(), "away_score": pl.Int16(), "has_360": pl.Boolean(),
+    "schema_version": pl.String(),
 }
 # fmt: on
 

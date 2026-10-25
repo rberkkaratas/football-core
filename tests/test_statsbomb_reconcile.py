@@ -44,3 +44,23 @@ def test_reconcile_reports_mismatch(sb_standard: Any) -> None:
     assert out.columns == COLUMNS
     assert out["home_goals"].dtype == pl.Int64 and out["away_goals"].dtype == pl.Int64
     assert out.rows() == [("sb:900001", 4, 1, 3, 1), ("sb:900003", 0, 2, 0, 0)]
+
+
+def test_reconcile_goals_reports_unscored(sb_standard: Any) -> None:
+    """MS3.matches §4.3: a null score never counts as reconciled (``!=`` would drop the row).
+
+    C (no shots) loses both scores, A (3-1, which agrees) loses only its home score; B keeps
+    its score and agrees, so it is not reported.
+    """
+    mid = pl.col("match_id")
+    matches = sb_standard.matches.with_columns(
+        pl.when(mid.is_in(["sb:900001", "sb:900003"]))
+        .then(None)
+        .otherwise(pl.col("home_score"))
+        .alias("home_score"),
+        pl.when(mid == "sb:900003").then(None).otherwise(pl.col("away_score")).alias("away_score"),
+    )
+    assert matches.schema["home_score"] == pl.Int16
+    out = statsbomb.reconcile_goals(sb_standard.shots, matches)
+    assert out.columns == COLUMNS
+    assert out.rows() == [("sb:900001", None, 1, 3, 1), ("sb:900003", None, None, 0, 0)]

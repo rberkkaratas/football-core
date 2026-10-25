@@ -15,8 +15,8 @@ from football_core import schema
 
 
 def test_schema_version_and_constants() -> None:
-    assert schema.SCHEMA_VERSION == "1.0"
-    assert schema.TABLES == ("shots", "freeze_frames")
+    assert schema.SCHEMA_VERSION == "1.1"  # MS3.matches: adding a canonical table is MINOR
+    assert schema.TABLES == ("shots", "freeze_frames", "matches")
     assert schema.ID_PATTERN == r"^(sb|ws):\S+$"
     assert dict(schema.ID_PREFIXES) == {"statsbomb": "sb:", "whoscored": "ws:"}
     assert frozenset({"goal", "saved"}) == schema.ON_TARGET_OUTCOMES

@@ -129,9 +129,12 @@ spot and π on the goal line between the posts.
 
 ## Canonical tables and leakage
 
-Every loader writes the two tables in [`football_core.schema`](api/schema.md): `shots` (one
-row per shot) and `freeze_frames` (one row per visible player other than the shooter). A
-table must pass `validate_shots` / `validate_freeze_frames` before it is used or saved.
+Every loader writes the three tables in [`football_core.schema`](api/schema.md): `matches`
+(one row per match), `shots` (one row per shot) and `freeze_frames` (one row per visible player
+other than the shooter). A table must pass `validate_matches` / `validate_shots` /
+`validate_freeze_frames` before it is used or saved; with `matches=`, `validate_shots` also
+checks that every shot's match exists and agrees with it (date, competition, season, teams,
+home side).
 
 - **Column roles.** Each column has a role: `identity`, `pre_shot`, `post_shot`, `outcome`,
   `restricted` or `lineage`. Model feature lists are built from the schema, for example
@@ -141,8 +144,8 @@ table must pass `validate_shots` / `validate_freeze_frames` before it is used or
 - **Missing values.** Null is the only missing marker: no NaN, no ±inf, and no filled-in
   default such as 0. For a yes / no flag, `False` means the provider records the attribute
   for that competition-season and did not tag it; null means it is not recorded there.
-- **Version.** Every row carries `schema_version` (currently `1.0`), and validation rejects
-  any other value.
+- **Version.** Every row carries `schema_version` (currently `1.1`: 1.1 added the `matches`
+  table), and validation rejects any other value.
 
 ## Validation splits
 Never split events randomly by row. Split by **match**, **season** or **league** to avoid

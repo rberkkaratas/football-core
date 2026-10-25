@@ -44,8 +44,9 @@ Manifests are committed; data never is. `fc verify` re-hashes a snapshot against
 only: `list_files=False`, no per-match ids or file names.
 
 ## Known archive issues the export must handle
-- One match is stored twice under different IDs (`Belgium_Pro_League/…_1904939` is a copy of
-  `Championship/…_1908515`). Matches whose event IDs already exist are dropped.
+- One match is stored twice under different IDs: `Championship/…_1908515` is the real one and
+  `Belgium_Pro_League/…_1904939` the copy, which `match_ids` marks `wrong_competition`. The
+  loader keeps 1908515 and drops the `wrong_competition` copy whatever the read order.
 - Column order and presence vary between files; `isGoal` and `isOwnGoal` are sometimes missing.
   Columns are read by name; goals come from `type`, own goals from qualifier 28.
 - `eventId` is numbered per team. The global `id` identifies shots; WhoScored reuses it on some

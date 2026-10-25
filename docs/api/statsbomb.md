@@ -1,7 +1,10 @@
 # io.statsbomb
 
 StatsBomb open data at a pinned commit, cached under the git-ignored `data/` folder and
-loaded into the C3 `shots` and `freeze_frames` tables plus a `matches` table.
+loaded into the C3 `shots` and `freeze_frames` tables plus the canonical `matches` table
+(`football_core.schema.MATCH_COLUMNS`, one row per match; the shots are validated against it).
+`reconcile_goals` compares the goals with the recorded score and always reports a match
+without a score, so an unscored match is never taken as reconciled.
 
 !!! warning "Licence"
     Never commit or redistribute StatsBomb data. Every chart and every published result
