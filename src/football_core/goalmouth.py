@@ -12,6 +12,12 @@ documentation says which side is the shooter's left. Its zone qualifiers name si
 HighRight, ...), so :func:`zone_sides` counts on which side of the goal centre the shots of
 each zone land, and :func:`confirms_direction` says whether the sides agree with no exception.
 
+**The criterion.** :func:`criterion_problems` judges both MS5 elements on the tables: every
+provider has at least :data:`MIN_GOALS_IN_FRAME` of its goals inside the frame (within
+``GOAL_TOLERANCE``), and the Opta direction is confirmed. ``fc goalmouth --check`` exits 1
+when it does not hold, so a loader change that flips the Opta direction or pushes goals out of
+the frame fails a command, not only a reader of its counts.
+
 Counts only: nothing here returns a row, an id or a player, so the output may be quoted for
 WhoScored data too.
 """
@@ -30,6 +36,7 @@ from football_core import pitch, schema
 
 GOAL_TOLERANCE: Final[float] = 0.15  # metres outside the opening that still count as in
 WOODWORK_TOLERANCE: Final[float] = 0.3  # metres from the woodwork that still count as on it
+MIN_GOALS_IN_FRAME: Final[float] = 0.99  # MS5: share of a provider's goals inside the frame
 GROUPS: Final = ("goal", "saved", "post", "off_target", "blocked", "own_goal")
 # Opta zone qualifier -> the side it names, from the shooter's view: 73 MissLeft, 75 MissRight,
 # 76 LowLeft, 77 HighLeft, 80 LowRight, 81 HighRight, 83 CloseLeft, 84 CloseRight,
@@ -193,3 +200,58 @@ def confirms_direction(table: pl.DataFrame, zones: Collection[int] = range(76, 8
         and left["shots"].sum() > 0
         and right["shots"].sum() > 0
     )
+
+
+def goal_shares(table: pl.DataFrame) -> dict[str, tuple[int, int]]:
+    """Per provider of a :func:`census` table, ``(goals in frame, goals)``; (0, 0) without goals.
+
+    Own goals are their own group, so they never count.
+
+    Examples
+    --------
+    >>> table = pl.DataFrame({"provider": ["statsbomb", "statsbomb", "whoscored"],
+    ...                       "group": ["goal", "saved", "saved"], "shots": [200, 50, 9],
+    ...                       "with_point": [200, 50, 9], "in_frame": [198, 50, 9],
+    ...                       "near_woodwork": [3, 1, 0]})
+    >>> goal_shares(table)
+    {'statsbomb': (198, 200), 'whoscored': (0, 0)}
+    """
+    out = {}
+    for provider in table["provider"].unique(maintain_order=True).to_list():
+        goals = table.filter((pl.col("provider") == provider) & (pl.col("group") == "goal"))
+        out[str(provider)] = (int(goals["in_frame"].sum()), int(goals["shots"].sum()))
+    return out
+
+
+def criterion_problems(table: pl.DataFrame, zones: pl.DataFrame | None) -> tuple[str, ...]:
+    """The MS5 goal-mouth criterion on the census and zone tables: one message per failure.
+
+    Per provider of ``table``: ``in_frame / shots`` of its goals is at least
+    :data:`MIN_GOALS_IN_FRAME` (a provider with no goal fails: the share cannot be judged).
+    When ``table`` has whoscored rows: ``zones`` (:func:`zone_sides`) is given and
+    :func:`confirms_direction` holds. An empty tuple means the criterion holds.
+
+    Examples
+    --------
+    >>> table = pl.DataFrame({"provider": ["statsbomb"], "group": ["goal"], "shots": [200],
+    ...                       "with_point": [200], "in_frame": [197], "near_woodwork": [3]})
+    >>> criterion_problems(table, None)
+    ('statsbomb: 197 of 200 goals inside the frame (98.50%), below 99%',)
+    >>> criterion_problems(table.with_columns(in_frame=pl.lit(198)), None)
+    ()
+    """
+    problems = []
+    for provider, (inside, goals) in goal_shares(table).items():
+        if goals == 0:
+            problems.append(f"{provider}: no goal, so the goals-in-frame share cannot be judged")
+        elif inside < MIN_GOALS_IN_FRAME * goals:
+            problems.append(
+                f"{provider}: {inside} of {goals} goals inside the frame ({inside / goals:.2%}), "
+                f"below {MIN_GOALS_IN_FRAME:.0%}"
+            )
+    if "whoscored" in goal_shares(table):
+        if zones is None:
+            problems.append("whoscored: no zone table, so the Opta direction is not checked")
+        elif not confirms_direction(zones):
+            problems.append("whoscored: the zone qualifiers 76-87 do not confirm the direction")
+    return tuple(problems)

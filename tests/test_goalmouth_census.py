@@ -44,22 +44,26 @@ ROWS = [
     ("s11", "statsbomb", "goal", True, 35.0, 0.3),          # own goal: in; woodwork 2.14
     ("s05", "statsbomb", "saved", False, 36.0, 2.5901),     # z 0.1501 above the bar: out; near
     ("w05", "whoscored", "post", False, 34.0, INF),         # infinite height: never counts
-    ("s02", "statsbomb", "goal", False, 30.19, 1.0),        # y 3.81: exactly 0.15 -> in; near
+    ("s02", "statsbomb", "goal", False, 30.19, 1.0),        # y 3.81: 0.15 - 1e-15 in float: in
     ("s09", "statsbomb", "off_target", False, None, None),  # no point
     ("w04", "whoscored", "off_target", False, NAN, 1.0),    # NaN: a point, never counts
     ("s03", "statsbomb", "goal", False, 30.1899, 1.0),      # y 3.8101: 0.1501 -> out; near
     ("s10", "statsbomb", "blocked", False, None, None),
     ("w03", "whoscored", "saved", False, 33.0, 1.0),        # y 1.0: in; woodwork 1.44
-    ("s04", "statsbomb", "saved", False, 36.0, 2.59),       # z 0.15 above the bar: in; near
+    ("s04", "statsbomb", "saved", False, 36.0, 2.59),       # z 0.15 - 1e-16 above the bar: in
     ("s12", "statsbomb", "off_target", False, 36.0, None),  # half a point: not with_point
     ("s06", "statsbomb", "post", False, 37.70, 1.2),        # y -3.70: in (0.04); in the post
     ("w01", "whoscored", "goal", False, 34.5, 0.5),         # in; woodwork 1.94
     ("s08", "statsbomb", "off_target", False, 40.0, 0.5),   # y -6: frame 2.34, post 2.22
+    ("s13", "statsbomb", "goal", False, 30.1899999995, 1.0),   # frame 0.15 + 5e-10: in; near
+    ("s14", "statsbomb", "goal", False, 30.1899999985, 1.0),   # 0.15 + 1.5e-9: out; near
+    ("s15", "statsbomb", "saved", False, 34.0, 2.8600000005),  # woodwork 0.3 + 5e-10: near
+    ("s16", "statsbomb", "saved", False, 34.0, 2.8600000015),  # 0.3 + 1.5e-9: not near
 ]
 # provider, group, shots, with_point, in_frame, near_woodwork (provider, then GROUPS order)
 EXPECTED = [
-    ("statsbomb", "goal", 3, 3, 2, 2),
-    ("statsbomb", "saved", 2, 2, 1, 2),
+    ("statsbomb", "goal", 5, 5, 3, 4),
+    ("statsbomb", "saved", 4, 4, 1, 3),
     ("statsbomb", "post", 2, 2, 1, 1),
     ("statsbomb", "off_target", 3, 1, 0, 0),
     ("statsbomb", "blocked", 1, 0, 0, 0),
@@ -141,7 +145,7 @@ def test_census_own_goal_is_its_own_group() -> None:
     absent group has no row."""
     rows = [r for r in ROWS if r[1] == "statsbomb" and r[2] == "goal"]
     out = _gm().census(_frame(rows))
-    assert out.select("group", "shots").rows() == [("goal", 3), ("own_goal", 1)]
+    assert out.select("group", "shots").rows() == [("goal", 5), ("own_goal", 1)]
 
 
 def test_census_null_own_goal_and_unknown_group() -> None:
@@ -158,3 +162,63 @@ def test_census_null_own_goal_and_unknown_group() -> None:
     )
     out = _gm().census(shots)
     assert out.select("group", "shots").rows() == [("goal", 2), ("own_goal", 1), ("weird", 1)]
+
+
+@pytest.mark.parametrize(
+    ("shot_id", "distance", "tolerance", "column", "counted"),
+    [
+        ("s13", "frame", 0.15, "in_frame", True),
+        ("s14", "frame", 0.15, "in_frame", False),
+        ("s15", "woodwork", 0.3, "near_woodwork", True),
+        ("s16", "woodwork", 0.3, "near_woodwork", False),
+    ],
+)
+def test_census_tolerance_boundaries(
+    shot_id: str, distance: str, tolerance: float, column: str, counted: bool
+) -> None:
+    """The criterion's "within 0.15 m" (and the 0.3 m woodwork band) is two-sided and inclusive
+    up to ``schema.DISTANCE_TOLERANCE``: a point whose float distance lies in [tol, tol + 1e-9]
+    counts, one just beyond it does not (run5-ms5 Q3: the "exactly 0.15" rows sat inside in
+    float, so a strict ``<`` survived)."""
+    from football_core import pitch
+
+    row = next(r for r in ROWS if r[0] == shot_id)
+    gy, gz = pitch.to_goal_frame([row[4]], [row[5]])
+    fn = pitch.frame_distance if distance == "frame" else pitch.woodwork_distance
+    d = float(fn(gy, gz)[0])
+    if counted:  # precondition: on the boundary in float, not inside it
+        assert tolerance <= d <= tolerance + schema.DISTANCE_TOLERANCE
+    else:
+        assert tolerance + schema.DISTANCE_TOLERANCE < d < tolerance + 1e-8
+    out = _gm().census(_frame([row]))
+    assert out[column].to_list() == [int(counted)]
+
+
+def test_criterion_problems() -> None:
+    """``criterion_problems``: each provider needs >= 99 % of its goals inside the frame (99 %
+    exactly passes, one goal fewer fails, no goal fails); whoscored also needs a zone table that
+    confirms the direction."""
+    gm = _gm()
+    assert gm.MIN_GOALS_IN_FRAME == 0.99
+
+    def table(sb_in: int, ws_goals: int = 100) -> pl.DataFrame:
+        rows = [("statsbomb", "goal", 200, 200, sb_in, 0), ("statsbomb", "saved", 9, 9, 1, 0),
+                ("whoscored", "goal", ws_goals, ws_goals, ws_goals, 0),
+                ("whoscored", "saved", 5, 5, 5, 0)]  # fmt: skip
+        return _expected(rows)
+
+    zones = pl.DataFrame({
+        "zone": [76, 80], "named_side": ["left", "right"], "shots": [5, 4],
+        "shooter_left": [5, 0], "shooter_right": [0, 4], "centre": [0, 0],
+    })  # fmt: skip
+    assert gm.criterion_problems(table(198), zones) == ()
+    (miss,) = gm.criterion_problems(table(197), zones)
+    assert miss.startswith("statsbomb: 197 of 200")
+    (no_goal,) = gm.criterion_problems(table(198, ws_goals=0), zones)
+    assert no_goal.startswith("whoscored: no goal")
+    flipped = zones.with_columns(shooter_left=pl.Series([4, 1]), shooter_right=pl.Series([1, 3]))
+    assert gm.criterion_problems(table(198), flipped) == (
+        "whoscored: the zone qualifiers 76-87 do not confirm the direction",
+    )
+    assert "not checked" in gm.criterion_problems(table(198), None)[0]
+    assert gm.criterion_problems(table(198).filter(pl.col("provider") == "statsbomb"), None) == ()

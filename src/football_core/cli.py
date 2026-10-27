@@ -2,8 +2,9 @@
 
 ``fc snapshot`` builds and writes a snapshot, ``fc verify`` checks snapshots against their
 manifests, ``fc builders`` lists the builders, ``fc goalmouth`` prints the goal-mouth census
-of snapshots' shots (counts only, to stdout; it writes nothing). Exit codes: 0 success, 1 a
-snapshot or verification problem, 2 a usage error or a manifest that cannot be read. ``fc`` is
+of snapshots' shots (counts only, to stdout; it writes nothing; with ``--check`` it also exits 1
+when the MS5 goal-mouth criterion fails). Exit codes: 0 success, 1 a snapshot or verification
+problem or a failed ``--check``, 2 a usage error or a manifest that cannot be read. ``fc`` is
 also a shell builtin in zsh and bash, so run it as ``uv run fc``, or use the alias
 ``football-core`` in an activated shell.
 """
@@ -61,6 +62,12 @@ def _parser() -> argparse.ArgumentParser:
 
     mouth = commands.add_parser("goalmouth", help="print the goal-mouth census (counts only)")
     mouth.add_argument("manifests", nargs="+", metavar="MANIFEST")
+    mouth.add_argument(
+        "--check",
+        action="store_true",
+        help="exit 1 unless >= 99%% of each provider's goals are in the frame and the Opta "
+        "direction is confirmed",
+    )
     return parser
 
 
@@ -161,10 +168,18 @@ def _goalmouth(args: argparse.Namespace) -> int:
     with pl.Config(tbl_rows=-1, tbl_cols=-1, tbl_hide_dataframe_shape=True):
         for table in tables:
             print(table)
+    for provider, (inside, goals) in goalmouth.goal_shares(tables[0]).items():
+        share = f"{inside / goals:.2%}" if goals else "n/a"
+        print(f"goals inside the frame: {provider} {inside} of {goals} ({share})")
     if len(tables) == 2:
         confirmed = "yes" if goalmouth.confirms_direction(tables[1]) else "no"
         print(f"direction confirmed (zones 76-87): {confirmed}")
-    return 0
+    if not args.check:
+        return 0
+    problems = goalmouth.criterion_problems(tables[0], tables[1] if len(tables) == 2 else None)
+    for problem in problems:
+        print(f"fc: check failed: {problem}", file=sys.stderr)
+    return 1 if problems else 0
 
 
 def main(argv: Sequence[str] | None = None) -> int:

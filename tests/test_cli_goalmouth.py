@@ -62,6 +62,20 @@ def test_goalmouth_output(
     assert "direction confirmed" not in out and "named_side" not in out  # no whoscored rows
 
 
+def test_goalmouth_check(capsys: pytest.CaptureFixture[str], manifests: tuple[Path, Path]) -> None:
+    """``--check`` exits 1, naming the failure on stderr, when the zone qualifiers do not confirm
+    the Opta direction (the fixture has a left zone only), and prints the goals-in-frame share
+    per provider; without ``--check`` the same snapshots exit 0 (run5-ms5 B6, Q9)."""
+    sb, ws = manifests
+    rc, out, err = _run(capsys, "goalmouth", "--check", str(sb), str(ws))
+    assert rc == 1
+    assert "fc: check failed: whoscored: the zone qualifiers 76-87 do not confirm" in err
+    assert "Traceback" not in out + err
+    assert "goals inside the frame: statsbomb" in out and "goals inside the frame: whoscored" in out
+    rc, _, err = _run(capsys, "goalmouth", str(sb), str(ws))
+    assert (rc, err) == (0, "")
+
+
 def test_goalmouth_bad_manifest(capsys: pytest.CaptureFixture[str], tmp_path: Path) -> None:
     bad = tmp_path / "bad.json"
     bad.write_text("{not json", encoding="utf-8")

@@ -12,6 +12,9 @@ The P2.1 goal-mouth checks, counts only. Every distance is computed in the goal 
   shots on the shooter's left, right and centre; `confirms_direction` is True when every left
   zone of 76–87 lies on the left and every right zone on the right. Zones 73 / 75 (MissLeft /
   MissRight) are reported apart.
-- `fc goalmouth MANIFEST...` prints both tables for verified snapshots and writes nothing.
+- `fc goalmouth MANIFEST...` prints both tables and the goals-inside-the-frame share per provider
+  for verified snapshots and writes nothing. With `--check` it exits 1 when the MS5 criterion
+  fails (`criterion_problems`: under 99 % of a provider's goals inside the frame, or the Opta
+  direction not confirmed), so a loader regression fails a command after a snapshot rebuild.
 
 ::: football_core.goalmouth
