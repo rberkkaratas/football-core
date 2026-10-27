@@ -10,7 +10,7 @@ Shared foundation for the football model repositories:
 | [football-possession-value](../football-possession-value) | xT, VAEP, OBV / PV-style action valuation |
 | [football-tracking-models](../football-tracking-models) | Pitch control, EPV, OBSO, pressing intensity |
 
-> **Status:** `pitch` (C2), `schema` (C3; 1.1 adds the canonical matches table, C3.1), `io.snapshot` with the `fc` CLI (C6), the StatsBomb open-data loader `io.statsbomb` (C4), the private WhoScored / Opta archive loader `io.whoscored` (C5, git-ignored snapshot and manifest) and `viz` (C7, shot map and goal-mouth plot) are implemented and tested. Next: goal-mouth harmonisation for xGOT (MS5, P2.1). See [`docs/roadmap.md`](docs/roadmap.md) and [`docs/modules.md`](docs/modules.md).
+> **Status:** `pitch` (C2), `schema` (C3; 1.1 adds the canonical matches table, C3.1; 1.2 adds the facing keeper `gk_id`, P2.1), `io.snapshot` with the `fc` CLI (C6), the StatsBomb open-data loader `io.statsbomb` (C4), the private WhoScored / Opta archive loader `io.whoscored` (C5, git-ignored snapshot and manifest), `viz` (C7, shot map and goal-mouth plot) and the goal-mouth harmonisation with `goalmouth` and `fc goalmouth` (P2.1, MS5) are implemented and tested. Next: the goalkeeper models of football-shot-models (MS6). See [`docs/roadmap.md`](docs/roadmap.md) and [`docs/modules.md`](docs/modules.md).
 
 ## Why a shared package
 Every model repo needs the same three things: read events from different providers, put them

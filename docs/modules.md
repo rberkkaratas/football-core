@@ -2,25 +2,31 @@
 
 ```
 src/football_core/
-├── pitch.py             # provider → 105 x 68 m piecewise mapping, goal mouth, distance & angle
+├── pitch.py             # provider → 105 x 68 m piecewise mapping, goal mouth and goal frame,
+│                        #   goal-line projection, distance & angle
+├── goalmouth.py         # goal-mouth census (goals in the frame, woodwork) and the Opta zone check
 ├── schema.py            # matches, shot + freeze-frame tables: dtypes, pandera models, roles
-├── cli.py               # the `fc` console script (alias `football-core`): snapshot, verify, builders
+├── cli.py               # the `fc` console script (alias `football-core`): snapshot, verify,
+│                        #   builders, goalmouth
 ├── io/
 │   ├── __init__.py      # package docstring only; loaders are imported by name
-│   ├── statsbomb.py     # open data at a pinned commit → shots, freeze frames, matches; logo
-│   ├── whoscored.py     # private WhoScored / Opta CSV archive → shots and matches (no frames)
+│   ├── statsbomb.py     # open data at a pinned commit → shots, freeze frames, matches; logo;
+│   │                    #   stop points projected to the goal line, facing keeper
+│   ├── whoscored.py     # private WhoScored / Opta CSV archive → shots and matches (no frames);
+│   │                    #   facing keeper from the lineup events
 │   └── snapshot.py      # parquet + manifest writer and verifier, builder registry
 └── viz.py               # shot map, front-on goal-mouth plot, attribution
 ```
 
 | Module | Status | Milestone |
 |---|---|---|
-| `pitch` | ✅ Done | C2 |
-| `schema` | ✅ Done (1.1: matches table) | C3, C3.1 |
+| `pitch` | ✅ Done (goal frame, goal-mouth landmarks, projection) | C2, P2.1 |
+| `goalmouth` | ✅ Done | P2.1 |
+| `schema` | ✅ Done (1.1: matches table; 1.2: `gk_id`) | C3, C3.1, P2.1 |
 | `io.snapshot` | ✅ Done | C6 |
-| `cli` | ✅ Done | C6 |
-| `io.statsbomb` | ✅ Done | C4 |
-| `io.whoscored` | ✅ Done (builder `whoscored`; manifest git-ignored) | C5 |
+| `cli` | ✅ Done (`fc goalmouth`) | C6, P2.1 |
+| `io.statsbomb` | ✅ Done (goal-line projection, `gk_id`) | C4, P2.1 |
+| `io.whoscored` | ✅ Done (builder `whoscored`; manifest git-ignored; `gk_id`) | C5, P2.1 |
 | `viz` | ✅ Done (`viz` extra: matplotlib) | C7 |
 
 Every module ships with unit tests before a model repo depends on it. Reference libraries

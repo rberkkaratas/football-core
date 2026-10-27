@@ -71,18 +71,71 @@ mplsoccer 1.8.1's `opta`, `statsbomb` and `custom` (105 x 68) pitch definitions,
 
 ### Goal mouth
 
-Shot end locations in the goal mouth use the **same `y` axis** as the pitch (posts at
-30.34 / 37.66 m), so the width mapping above applies unchanged. Height:
+Shot end locations in the goal mouth are stored in the **same `y` axis** as the pitch
+(`goal_y`, posts at 30.34 / 37.66 m) with the height `goal_z` in metres above the ground.
+Both providers map through one landmark rule, `pitch.goal_mouth_to_canonical`: the width
+landmarks above plus the **outer face of each post**, and in height the ground, the underside
+of the crossbar and its top. Posts and bar are 12 cm wide (IFAB Law 1, `pitch.POST_WIDTH`).
 
-| Provider | Field | To metres |
+| Landmark | Metres (`y` / `z`) | Opta `goalMouthY` / `goalMouthZ` | StatsBomb `end_location`, yd |
+|---|---:|---:|---:|
+| Right post, outer face | 30.22 | 44.2 | 44.0 + 0.12 · 6 / 5.5 |
+| Right post, inner face | 30.34 | 45.2 | 44.0 |
+| Left post, inner face | 37.66 | 54.8 | 36.0 |
+| Left post, outer face | 37.78 | 55.8 | 36.0 − 0.12 · 6 / 5.5 |
+| Ground | 0 | 0 | 0 |
+| Crossbar, underside | 2.44 | 38 | 2.44 / 0.9144 |
+| Crossbar, top | 2.56 | 42 | 2.56 / 0.9144 |
+
+Opta draws the woodwork as a **band**: post hits are coded in [44.2, 45.2] and [54.8, 55.8],
+bar hits at heights in (38, 42), and no goal, save or miss lies in either band. The band maps
+onto the 12 cm of the post or bar, so a woodwork hit lands on the woodwork. Inside the frame
+([45.2, 54.8] × [0, 38]) the Opta map is unchanged. StatsBomb's extra knots are collinear, so
+its map is unchanged. Above the bar top the height keeps the below-bar scale, and a negative
+height clips to 0.
+
+**Goal frame.** `pitch.to_goal_frame(goal_y, goal_z)` gives metres from the goal centre,
+**y positive = the shooter's right**, z up from the ground: the right post is at y = +3.66,
+the left post at −3.66, the crossbar at z = 2.44. The stored columns stay in pitch-width metres
+(schema 1.2); every goal-mouth check (`football_core.goalmouth`) and every xGOT feature reads
+the goal frame through this one function. `pitch.frame_distance` is the distance from a
+goal-frame point to the opening (0 inside it), `pitch.woodwork_distance` the distance to the
+posts and bar as 12 cm solids.
+
+**StatsBomb stop points.** StatsBomb records a save, or any shot the keeper stopped, where the
+ball was stopped, not where it crossed the line. The loader projects such a point to the goal
+line along the line from the shot location (`pitch.project_to_goal_line`, in metres after the
+piecewise map). The rule is outcome-blind and grid-aware: a stop point within one grid cell of
+the line (raw end x ≥ 120 − 2c, with c the match's cell offset, so 1 yd on a coarse match and
+0.1 yd on a fine one) counts as on the line and is kept as recorded; every other point is
+projected, whatever the outcome. `goal_z` keeps the recorded height at the stop point (no
+trajectory model). Opta's `goalMouthY` / `goalMouthZ` is already the goal-plane point, so
+WhoScored shots are not projected.
+
+**Opta direction and crossbar, confirmed (P2.1).** The crossbar at 38: saves reach at most 38.0
+and bar hits start above it. The direction of `goalMouthY`: every shot with a left zone
+qualifier lies on the shooter's left (raw > 50, goal-frame y < 0) and every shot with a right
+zone qualifier on the shooter's right, with 0 exceptions (`goalmouth.zone_sides`,
+`fc goalmouth`; the "Close" zones 83–87 hold no shot in the archive):
+
+| Opta zone qualifier | Named side | Goal-frame side |
 |---|---|---|
-| Opta / WhoScored | `goalMouthZ` (q103), crossbar at 38 | `z · 2.44 / 38` |
-| StatsBomb | `end_location[2]`, yards, crossbar at 2.67 | `z · 0.9144` |
+| 76 LowLeft, 77 HighLeft, 83 CloseLeft, 86 CloseLeftAndHigh | left | y < 0 on every shot (shooter's left) |
+| 80 LowRight, 81 HighRight, 84 CloseRight, 87 CloseRightAndHigh | right | y > 0 on every shot (shooter's right) |
+| 73 MissLeft / 75 MissRight (reported apart) | left / right | all on their named side |
+| 74, 78, 79, 85 | no side | — |
 
-!!! warning "To verify against real data"
-    The Opta crossbar value (38) comes from kloppy and mplsoccer, not an official Opta document,
-    and the left/right direction of `goalMouthY` must be confirmed against the goal-mouth zone
-    qualifiers (76–87). Both checks belong to milestone P2.1.
+A physical anchor agrees: of 510 saves that are more than 2 m off centre both on
+`goalMouthY` and on the line from the shot to the save point, 437 are on the same side and 73 on
+the opposite one (correlation 0.624; parries explain the opposite cases).
+
+**Facing keeper.** `gk_id` is the goalkeeper of the defending team on the pitch at the strike,
+from the lineup state, never from save or goal-keeper events (those exist per outcome). StatsBomb
+walks `Starting XI`, `Tactical Shift` (position id 1) and keeper `Substitution`s in event index
+order and cross-checks the freeze-frame keeper of every non-penalty shot. WhoScored walks
+`FormationSet` / `FormationChange` (slot 1 of q131 paired with q30) and `SubstitutionOn` into
+slot 1 (q145) in clock order. Own goals get null; a shot before any lineup, or a lineup without
+exactly one keeper, raises.
 
 ### Special cases
 - **Own goals** (Opta qualifier 28) are recorded from the scoring side's perspective. The
@@ -95,7 +148,7 @@ Shot end locations in the goal mouth use the **same `y` axis** as the pitch (pos
   every shot location of the match is an integer (coarse grid), else 0.05 yd (fine grid). The
   evidence: shifted penalties land on the spot (coarse mean 108.08, fine 107.99 for a true 108);
   `metadata.shot_fidelity_version` agrees with the inferred grid on all 3,764 matches that carry
-  it, and a disagreement raises; goals sit at the left post (y = 44.0) 57 times but at the right
+  it, and a disagreement raises; goals sit at the right post (y = 44.0) 57 times but at the left
   post (36.0) only 8 times, the asymmetry of a ceiling-to-0.1 grid, and coarse matches record
   goal-mouth y in tenths. The same offset applies to freeze-frame players, `gk_*` and
   `end_location`, with two deliberate deviations from kloppy, both on post-shot columns only:

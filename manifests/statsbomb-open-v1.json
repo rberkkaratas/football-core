@@ -2,9 +2,9 @@
   "manifest_version": 1,
   "name": "statsbomb-open-v1",
   "builder": "statsbomb",
-  "schema_version": "1.1",
+  "schema_version": "1.2",
   "data_dir": "../data/snapshots/statsbomb-open-v1",
-  "data_digest": "31146e70cefb5fe39056b8ef24216724a5d5162601decb2e214c0608b2eb3e78",
+  "data_digest": "63002fdd75a8889807a717c20035b3c42132534408074f2ecdd40118b35d62be",
   "source": {
     "kind": "git",
     "uri": "https://github.com/statsbomb/open-data",
@@ -814,6 +814,10 @@
           "dtype": "String"
         },
         {
+          "name": "gk_id",
+          "dtype": "String"
+        },
+        {
           "name": "is_home",
           "dtype": "Boolean"
         },
@@ -1618,13 +1622,13 @@
     },
     {
       "path": "matches.parquet",
-      "sha256": "e9cf80a64fd44d1dbe882a8d58c7c3d1ac01fc22b9c10247fb2316fb770f1417",
+      "sha256": "f254db72bba94e412f589e11dcfa439372523f1b0ecc1c401558a962d9ba8821",
       "bytes": 40615
     },
     {
       "path": "shots.parquet",
-      "sha256": "2c05c497d87a486e348ce17c7114e353dd114f12f1442bbb1c60b77fed424854",
-      "bytes": 24418288
+      "sha256": "aaa94d9cc32aebdd41d9aedea906af26c0fb293f9a630255c90b60f49fcaaba3",
+      "bytes": 24646883
     }
   ],
   "parquet": {
@@ -1639,7 +1643,7 @@
     "pandera": "0.34.1",
     "numpy": "2.5.4",
     "football_core": "0.1.0",
-    "football_core_git": "fc95d856b06e37f63a6607a4b9c9727cc473ab41",
-    "football_core_dirty": true
+    "football_core_git": "d5cd9468c7ffa4a6bb2a32fe3206349af9fb5852",
+    "football_core_dirty": false
   }
 }
