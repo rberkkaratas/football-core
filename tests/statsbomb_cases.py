@@ -44,7 +44,8 @@ PERIOD_END = {1: 45, 2: 90, 3: 105, 4: 120, 5: 125}
 # StatsBomb vocabulary ids (as in the open-data specification); unknown names get id 999.
 # fmt: off
 TYPE_IDS = {"Shot": 16, "Pass": 30, "Starting XI": 35, "Half Start": 18, "Half End": 34,
-            "Own Goal Against": 20, "Own Goal For": 25}
+            "Own Goal Against": 20, "Own Goal For": 25, "Substitution": 19, "Tactical Shift": 36,
+            "Bad Behaviour": 24}
 SHOT_TYPE_IDS = {"Open Play": 87, "Penalty": 88, "Free Kick": 62, "Corner": 61, "Kick Off": 65}
 OUTCOME_IDS = {"Blocked": 96, "Goal": 97, "Off T": 98, "Post": 99, "Saved": 100, "Wayward": 101,
                "Saved Off Target": 115, "Saved to Post": 116}

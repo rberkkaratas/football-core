@@ -78,12 +78,16 @@ def test_saved_shot_keeps_goal_mouth_estimate(valid_shots: pl.DataFrame) -> None
 
 
 def test_all_null_nullable_columns_validate(valid_shots: pl.DataFrame) -> None:
-    nullable = [name for name, _, null in sc.SHOT_COLUMNS if null]
+    # gk_id is nullable only on own goals (MS5.goalmouth §4): all-null fails its rule alone.
+    nullable = [name for name, _, null in sc.SHOT_COLUMNS if null and name != "gk_id"]
     df = valid_shots.with_columns(
         pl.lit(None, dtype=sc.SHOT_DTYPES[name]).alias(name) for name in nullable
     )
     assert df.schema == valid_shots.schema
     schema.validate_shots(df)
+    with pytest.raises(schema.SchemaValidationError) as info:
+        schema.validate_shots(df.with_columns(pl.lit(None, dtype=pl.String()).alias("gk_id")))
+    assert {f.check for f in info.value.failures} == {"gk_id_matches_own_goal"}
 
 
 def test_negative_zero_coordinates_validate(valid_shots: pl.DataFrame) -> None:

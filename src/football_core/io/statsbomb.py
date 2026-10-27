@@ -30,8 +30,20 @@ goals come from the ``Own Goal Against`` event, flipped so the goal entered is a
 their locations are as recorded (12 at the pin lie outside the box, 40-85 m from goal), which
 matters for shot maps only. ``situation`` comes from ``play_pattern``, which spans the whole
 possession, so StatsBomb set-piece shares are not comparable with Opta's phase-only marking.
-``goal_y`` is the recorded goal-plane point: 23 goals at the pin lie outside the posts, so
-"inside the posts" is no rule for goals.
+
+**Goal mouth.** ``goal_y`` is the recorded goal-plane point when the ball was stopped within one
+grid cell of the goal line (raw ``end_x`` ≥ 120 − 2 × ``cell_offset``: 1 yd on coarse matches,
+0.1 yd on fine ones, where a point cannot be told from the line). A shot stopped earlier (a
+save, mostly) is projected: ``goal_y`` is where the line from the shot through the stop point
+meets the goal line (``pitch.project_to_goal_line``, in metres). The rule reads the stop point
+and the grid, never the outcome, so goals and saves get one rule. ``goal_z`` stays the recorded
+height.
+
+**Facing keeper.** ``gk_id`` is the defending team's goalkeeper from the lineup state, walked
+in event ``index`` order: the ``position.id == 1`` player of the last ``Starting XI`` or
+``Tactical Shift``, handed on by a ``Substitution`` of that player. Save and Goal Keeper events
+are not used: they exist only for some outcomes. A non-teammate keeper in a shot's freeze frame
+must be the same player.
 
 **360.** Visible areas fill ``shots.visible_area``. Eight 360 files at the pin are unusable
 (3845506 is not JSON, upstream #50/#83; 3895158, 3895266, 3895309, 3837706, 3877115, 3877170
@@ -89,7 +101,7 @@ _GOAL_LINE_X: Final[float] = 120.0
 _FLAGS: Final = ("first_time", "follows_dribble", "open_goal", "one_on_one", "deflected")
 _OWN_GOAL_NULLS: Final = (
     *("ex", "ey", "ez", "gy", "gz", "gkx", "gky", "visible_area", "body_part", "technique"),
-    *("assist_type", "assist_event_id", "provider_xg", *_FLAGS),
+    *("assist_type", "assist_event_id", "provider_xg", "project", *_FLAGS),
 )  # the context of an own goal is not recorded
 _DATE: Final = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}")
 _TIMESTAMP: Final = re.compile(r"([0-9]{2}):([0-9]{2}):([0-9]{2}(?:\.[0-9]+)?)")
@@ -584,6 +596,40 @@ def _polygon(flat: Sequence[float], match_id: int) -> list[list[float]]:
     return [[float(x), float(y)] for x, y in zip(xs, ys, strict=True)]
 
 
+def _facing_keepers(mid: int, events: Sequence[Event], home: int, away: int) -> dict[str, str]:
+    """Shot event id -> ``sb:`` id of the defending keeper, from the lineup state."""
+    keeper: dict[int, int] = {}
+    faced: dict[str, str] = {}
+    last = None
+    for event in events:
+        if last is not None and not event["index"] > last:
+            raise ValueError(
+                f"match {mid}: event {event['id']} has index {event['index']!r} after "
+                f"{last!r}; events must be in index order"
+            )
+        last, kind = event["index"], event["type"]["name"]
+        if kind in ("Starting XI", "Tactical Shift"):
+            lineup = event["tactics"]["lineup"]
+            ids = [p["player"]["id"] for p in lineup if p["position"]["id"] == 1]
+            if len(ids) != 1:
+                raise ValueError(
+                    f"match {mid}: event {event['id']} ({kind}) lists {len(ids)} goalkeepers; "
+                    "expected exactly one"
+                )
+            keeper[event["team"]["id"]] = ids[0]
+        elif kind == "Substitution" and keeper.get(event["team"]["id"]) == event["player"]["id"]:
+            keeper[event["team"]["id"]] = event["substitution"]["replacement"]["id"]
+        elif kind == "Shot":
+            other = away if event["team"]["id"] == home else home
+            if other not in keeper:
+                raise ValueError(
+                    f"match {mid}: shot {event['id']} comes before team {other}'s lineup; "
+                    "no keeper to face"
+                )
+            faced[event["id"]] = f"sb:{keeper[other]}"
+    return faced
+
+
 def _add_match(
     row: Mapping[str, object],
     entry: Event,
@@ -599,6 +645,7 @@ def _add_match(
     fidelity = (entry.get("metadata") or {}).get("shot_fidelity_version")
     c = cell_offset(mid, [_xy(e["location"]) for e in kept], fidelity)
     by_id = {e["id"]: e for e in events}
+    keepers = _facing_keepers(mid, events, home, away)
     for event in kept:
         own = event["type"]["name"] == "Own Goal Against"
         shot: Event = {} if own else event["shot"]
@@ -620,6 +667,7 @@ def _add_match(
             shots[key].append(row[key])
         shots["shot_id"].append(f"sb:{event['id']}")
         shots["player_id"].append(f"sb:{event['player']['id']}")
+        shots["gk_id"].append(None if own else keepers[event["id"]])
         shots["team_id"].append(f"sb:{team}")
         shots["opponent_team_id"].append(f"sb:{away if team == home else home}")
         shots["is_home"].append(team == home)
@@ -657,12 +705,21 @@ def _add_match(
         mouth = three and outcome_name != "Blocked"
         shots["gy"].append(ey - FINE_OFFSET if mouth else None)
         shots["gz"].append(ez if mouth else None)
+        # a stop point within one grid cell of the line cannot be told from the line
+        shots["project"].append(mouth and ex < _GOAL_LINE_X - 2 * c - 1e-9)
         keeper = None
         if not penalty:
             for player in shot.get("freeze_frame", ()):
                 px, py = _xy(player["location"])
                 is_keeper = player["position"]["name"] == "Goalkeeper"
                 mate = _flag(player["teammate"], mid, event["id"], "freeze_frame teammate")
+                if is_keeper and not mate:
+                    seen = f"sb:{player['player']['id']}"
+                    if seen != keepers[event["id"]]:
+                        raise ValueError(
+                            f"match {mid}: event {event['id']} freeze-frame keeper {seen} is not "
+                            f"the lineup keeper {keepers[event['id']]}"
+                        )
                 if is_keeper and not mate and keeper is None:
                     keeper = (px - c, py - c)  # the opponent keeper; never the shooter's own
                 frames["shot_id"].append(f"sb:{event['id']}")
@@ -704,6 +761,8 @@ def _shots_frame(cols: defaultdict[str, list[Any]]) -> pl.DataFrame:
     goal_y, goal_z = pitch.goal_mouth_to_canonical(
         np.array(cols["gy"], np.float64), np.array(cols["gz"], np.float64), "statsbomb"
     )
+    projected = pitch.project_to_goal_line(x, y, end_x.to_numpy(), end_y.to_numpy())
+    goal_y = np.where(np.array(cols["project"], dtype=bool), projected, goal_y)  # None: False
     gk_x, gk_y = _metres(cols["gkx"], cols["gky"])
     derived = {
         "x": pl.Series(x),

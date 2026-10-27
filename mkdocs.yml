@@ -55,6 +55,7 @@ nav:
   - Modules: modules.md
   - API reference:
       - pitch: api/pitch.md
+      - goalmouth: api/goalmouth.md
       - schema: api/schema.md
       - io.snapshot: api/snapshot.md
       - io.statsbomb: api/statsbomb.md

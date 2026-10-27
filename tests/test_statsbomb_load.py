@@ -60,6 +60,12 @@ def _shot_only(tmp_path: Path, *events: sbc.Event, **match: Any) -> Any:
     return _load(tmp_path, sbc.one_match(*events, **match))
 
 
+def _goal_line_y(r: dict[str, Any]) -> float:
+    """MS5.goalmouth §3.1: where the line from (x, y) through the stop point meets x = 105."""
+    k = (105.0 - r["x"]) / (r["end_x"] - r["x"])
+    return min(max(r["y"] + (r["end_y"] - r["y"]) * k, 0.0), 68.0)
+
+
 # --- zero violations --------------------------------------------------------------------------
 
 
@@ -93,19 +99,20 @@ def _random_shot(draw: st.DrawFn) -> sbc.Event:
         end: tuple[float, ...] = (draw(_tenths(0, 120)), draw(_tenths(0, 80)))
     else:
         end = (draw(_tenths(0, 120)), draw(_tenths(0, 80)), draw(_tenths(0, 7)))
-    opponents = draw(st.lists(st.integers(2001, 2011), unique=True, max_size=4))
+    opponents = draw(st.lists(st.integers(2002, 2011), unique=True, max_size=4))
     mates = draw(
-        st.lists(st.integers(1001, 1011).filter(lambda p: p != 1009), max_size=3, unique=True)
+        st.lists(st.integers(1002, 1011).filter(lambda p: p != 1009), max_size=3, unique=True)
     )
-    keeper_first = draw(st.booleans())
+    # MS5.goalmouth §3.1: a frame keeper is a lineup keeper (2001 facing, or the shooter's 1001)
+    keeper = draw(st.sampled_from([None, 2001, 1001]))
     frame = [
         sbc.ff_player(
             pid,
             (draw(_tenths(0, 120)), draw(_tenths(0, 80))),
             teammate=pid < 2000,
-            keeper=keeper_first and i == 0,
+            keeper=keeper is not None and i == 0,
         )
-        for i, pid in enumerate(opponents + mates)
+        for i, pid in enumerate(([keeper] if keeper else []) + opponents + mates)
     ]
     flags = draw(st.sets(st.sampled_from(FLAGS)))
     return sbc.shot(
@@ -157,6 +164,7 @@ def _open_shot_expected() -> dict[str, Any]:
         "team_id": "sb:101",
         "opponent_team_id": "sb:202",
         "player_id": "sb:1009",
+        "gk_id": "sb:2001",  # MS5.goalmouth §3.1: the away lineup keeper
         "is_home": True,
         "period": 1,
         "minute": 23,
@@ -313,7 +321,8 @@ def test_goal_mouth_null_for_blocked_and_wayward(tmp_path: Path) -> None:
     assert m01["end_z"] is None
     assert _same(m03["end_z"], 0.4 * YARD)
     m04 = sbc.row(data.shots, "fake-shot-m04")
-    assert _same([m04["goal_y"], m04["goal_z"]], [sbc.metres_y(39.05 - FINE), 0.4 * YARD])
+    # MS5.goalmouth §3.1: a save stopped at 118.15 yd (fine grid) is projected to the goal line
+    assert _same([m04["goal_y"], m04["goal_z"]], [_goal_line_y(m04), 0.4 * YARD])
 
 
 def test_end_z_in_metres(tmp_path: Path) -> None:
@@ -629,7 +638,9 @@ def test_cell_offset_coarse_and_fine(sb_standard: Any) -> None:
     # coarse 3-value end [110, 38.1, 1.0]: x - 0.5, y - 0.05 (goal-mouth tenths), z unshifted
     coarse = sbc.row(shots, sbc.COARSE_SHOT)
     assert _same([coarse["end_x"], coarse["end_y"]], [95.375, 35.78425])
-    assert _same([coarse["goal_y"], coarse["goal_z"], coarse["end_z"]], [35.78425, YARD, YARD])
+    # MS5.goalmouth §3.1: the save stopped at 110 yd is projected to the goal line
+    assert _same([coarse["goal_y"], coarse["goal_z"], coarse["end_z"]],
+                 [_goal_line_y(coarse), YARD, YARD])  # fmt: skip
     # a shot location at x = 120 is shifted like any other
     assert _same(xy(sbc.FINE_GOAL_LINE_SHOT), [99.5 + 5.95 / 6 * 5.5, 34.04575])
     assert _same(xy(sbc.COARSE_GOAL_LINE_SHOT), [99.5 + 5.5 * 5.5 / 6, 34.4575])

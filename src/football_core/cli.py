@@ -1,10 +1,11 @@
 """The ``fc`` command line: a thin layer over ``football_core.io.snapshot``.
 
 ``fc snapshot`` builds and writes a snapshot, ``fc verify`` checks snapshots against their
-manifests, ``fc builders`` lists the builders. Exit codes: 0 success, 1 a snapshot or
-verification problem, 2 a usage error or a manifest that cannot be read. ``fc`` is also a
-shell builtin in zsh and bash, so run it as ``uv run fc``, or use the alias ``football-core``
-in an activated shell.
+manifests, ``fc builders`` lists the builders, ``fc goalmouth`` prints the goal-mouth census
+of snapshots' shots (counts only, to stdout; it writes nothing). Exit codes: 0 success, 1 a
+snapshot or verification problem, 2 a usage error or a manifest that cannot be read. ``fc`` is
+also a shell builtin in zsh and bash, so run it as ``uv run fc``, or use the alias
+``football-core`` in an activated shell.
 """
 
 from __future__ import annotations
@@ -16,7 +17,9 @@ import sys
 from collections.abc import Sequence
 from typing import Final
 
-from football_core import schema
+import polars as pl
+
+from football_core import goalmouth, schema
 from football_core.io import snapshot
 
 PARAM_KEY_PATTERN: Final[str] = r"^[a-z][a-z0-9_-]*$"
@@ -55,6 +58,9 @@ def _parser() -> argparse.ArgumentParser:
     verify.add_argument("--data-dir", metavar="DIR", help="data directory (one manifest only)")
 
     commands.add_parser("builders", help="list the available builders")
+
+    mouth = commands.add_parser("goalmouth", help="print the goal-mouth census (counts only)")
+    mouth.add_argument("manifests", nargs="+", metavar="MANIFEST")
     return parser
 
 
@@ -137,6 +143,30 @@ def _verify(args: argparse.Namespace) -> int:
     return code
 
 
+def _goalmouth(args: argparse.Namespace) -> int:
+    columns = ("provider", "outcome", "is_own_goal", "goal_y", "goal_z", "raw_qualifiers")
+    try:
+        frames = [
+            snapshot.load_snapshot(m, tables=["shots"])["shots"].select(columns)
+            for m in args.manifests
+        ]
+        shots = pl.concat(frames)
+        tables = [goalmouth.census(shots)]
+        if (shots["provider"].cast(pl.String) == "whoscored").any():
+            tables.append(goalmouth.zone_sides(shots))
+    except snapshot.ManifestError as e:
+        return _error(e, 2)
+    except (snapshot.SnapshotError, ValueError, OSError, pl.exceptions.PolarsError) as e:
+        return _error(e, 1)
+    with pl.Config(tbl_rows=-1, tbl_cols=-1, tbl_hide_dataframe_shape=True):
+        for table in tables:
+            print(table)
+    if len(tables) == 2:
+        confirmed = "yes" if goalmouth.confirms_direction(tables[1]) else "no"
+        print(f"direction confirmed (zones 76-87): {confirmed}")
+    return 0
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """Run ``fc`` and return its exit code (never calls ``sys.exit`` itself).
 
@@ -165,6 +195,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _snapshot(args)
     if args.command == "verify":
         return _verify(args)
+    if args.command == "goalmouth":
+        return _goalmouth(args)
     for name in snapshot.builder_names():
         print(name)
     return 0

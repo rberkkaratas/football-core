@@ -30,6 +30,17 @@ ablation drops penalties first. Opta q328 / q89 are not StatsBomb's ``first_time
 0.055. Columns Opta cannot fill (keeper position, technique, open goal, deflection, end
 height, provider xG) are null. Penalties, shoot-out kicks and own goals are all kept: choosing
 populations is the models' job.
+
+**Goal mouth.** ``goalMouthY`` / ``goalMouthZ`` are already the goal-plane point (every save
+lies in the frame), so they are mapped, never projected. Opta draws the woodwork as bands
+(posts in goalMouthY [44.2, 45.2] and [54.8, 55.8], the bar in goalMouthZ (38, 42]); the
+``football_core.pitch`` goal-mouth landmarks map each band onto the 12 cm of woodwork.
+
+**Facing keeper.** ``gk_id`` is the defending team's goalkeeper from the lineup state. Event
+files are not in clock order (formation rows can come last), so the lineup and shot rows are
+sorted by period, minute, second and ``id`` first. ``FormationSet`` and ``FormationChange``
+name the keeper as the one player in formation slot 1 (q30 player ids paired with q131
+slots); a ``SubstitutionOn`` into slot 1 (q145) hands the role on. Own goals get null.
 """
 
 from __future__ import annotations
@@ -90,6 +101,10 @@ PERIODS: Final[Mapping[str, int]] = MappingProxyType({
 NON_PLAY_PERIODS: Final = ("PreMatch", "PostGame")  # legal on non-shot rows only
 EXTRA_TIME: Final = ("FirstPeriodOfExtraTime", "SecondPeriodOfExtraTime")
 SHORT_MATCH_MINUTE: Final = 85
+PERIOD_RANK: Final[Mapping[str, int]] = MappingProxyType({
+    "PreMatch": 0, **PERIODS, "PostGame": 6,
+})
+LINEUP_TYPES: Final = ("FormationSet", "FormationChange", "SubstitutionOn")
 INT_TEXT: Final = r"[0-9]+(\.0)?"  # ids, eventId, minute, second (fullmatch)
 COORD_TEXT: Final = r"-?[0-9]+(\.[0-9]+)?"  # x, y, goal mouth, blocked point (fullmatch)
 SHOT_TYPES: Final[Mapping[str, str]] = MappingProxyType({
@@ -111,6 +126,10 @@ ONE_ON_ONE: Final = 89
 RELATED: Final = 55
 CROSS: Final = 2
 THROUGH_BALL: Final = 4
+INVOLVED_PLAYERS: Final = 30
+FORMATION_SLOTS: Final = 131
+FORMATION_SLOT: Final = 145
+KEEPER_SLOT: Final = "1"
 STATUSES: Final[Mapping[str, str | None]] = MappingProxyType({
     "ok": None, "wrong_competition": "wrong_competition", "pending": "pending",
     "": "unvalidated",
@@ -406,6 +425,52 @@ def _assist(found: list[Target], where: str) -> tuple[str | None, str | None]:
     return assist, f"ws:{_norm(str(gid))}"
 
 
+def _lineup_keeper(r: Mapping[str, Any], at: str) -> str | None:
+    """The keeper a lineup row names (normalised id), or None when it names none."""
+    q = {item["type"]["value"]: item.get("value") for item in _qualifiers(r["qualifiers"], at)}
+    if r["type"] == "SubstitutionOn":
+        return r["playerId"] if str(q.get(FORMATION_SLOT) or "").strip() == KEEPER_SLOT else None
+    players = [p.strip() for p in str(q.get(INVOLVED_PLAYERS) or "").split(",")]
+    slots = [p.strip() for p in str(q.get(FORMATION_SLOTS) or "").split(",")]
+    keepers = [p for p, slot in zip(players, slots, strict=False) if slot == KEEPER_SLOT]
+    if len(players) != len(slots) or len(keepers) != 1:
+        raise ValueError(
+            f"{at}: q{INVOLVED_PLAYERS} lists {len(players)} player(s) and q{FORMATION_SLOTS} "
+            f"{len(slots)} slot(s), {len(keepers)} in slot {KEEPER_SLOT}; expected equal "
+            "lengths and exactly one keeper"
+        )
+    if re.fullmatch(INT_TEXT, keepers[0]) is None:
+        raise ValueError(f"{at}: keeper id {keepers[0]!r} does not match {INT_TEXT}")
+    return _norm(keepers[0])
+
+
+def _facing_keepers(df: pl.DataFrame, where: str) -> dict[str, str | None]:
+    """Shot id -> the defending team's keeper (None before any lineup), in clock order."""
+    rows = df.filter(pl.col("type").is_in([*LINEUP_TYPES, *SHOT_TYPES]))
+    lineup = rows.filter(pl.col("type").is_in(LINEUP_TYPES))
+    for column in ("id", "minute", "second"):
+        _check_text(lineup, column, INT_TEXT, where, empty=False)
+    subs = lineup.filter(pl.col("type") == "SubstitutionOn")
+    _check_text(subs, "playerId", INT_TEXT, where, empty=False)
+    rows = rows.with_columns(
+        pl.col("id", "playerId").str.replace(_NORM, ""),
+        pl.col("id", "minute", "second").str.replace(_NORM, "").cast(pl.Int64).name.prefix("_"),
+        pl.col("period").replace_strict(PERIOD_RANK, default=None).alias("_rank"),
+    )
+    if (bad := rows.filter(pl.col("_rank").is_null())).height:
+        raise ValueError(f"{where}: event {bad['id'][0]!r}: period {bad['period'][0]!r}")
+    keeper: dict[str, str] = {}
+    faced: dict[str, str | None] = {}
+    for r in rows.sort("_rank", "_minute", "_second", "_id").iter_rows(named=True):
+        team = r["teamId"]
+        if r["type"] in SHOT_TYPES:
+            other = next((t for t in keeper if t != team), None)
+            faced[r["id"]] = None if other is None else keeper[other]
+        elif (named := _lineup_keeper(r, f"{where}: event {r['id']}")) is not None:
+            keeper[team] = named
+    return faced
+
+
 def _shot_rows(df: pl.DataFrame, where: str) -> pl.DataFrame:
     """The shot rows, every cell checked, ids normalised, numbers cast."""
     shots = df.filter(pl.col("type").is_in(list(SHOT_TYPES)))
@@ -435,6 +500,7 @@ def _add_shots(
 ) -> tuple[int, int]:
     """Append the match's shots to ``cols``; return the periods 1-2 goals (home, away)."""
     shots = _shot_rows(df, where)
+    keepers = _facing_keepers(df, where)
     refs = shots.select("teamId", pl.col("relatedEventId").alias("eventId")).drop_nulls().unique()
     targets: defaultdict[tuple[str, str], list[Target]] = defaultdict(list)
     linked = df.with_columns(pl.col("eventId").str.replace(_NORM, "")).join(
@@ -479,6 +545,9 @@ def _add_shots(
         outcome = "blocked" if blocked else SHOT_TYPES[r["type"]]
         period = PERIODS[r["period"]]
         saved, mouth = r["type"] == "SavedShot", not (blocked or own)
+        keeper = None if own else keepers[r["id"]]
+        if keeper is None and not own:
+            raise ValueError(f"{at}: shot before the opponent's lineup; no keeper to face")
         try:
             raw = json.dumps(parsed, ensure_ascii=False, allow_nan=False, separators=(",", ":"))
         except (ValueError, TypeError, RecursionError) as e:
@@ -492,6 +561,7 @@ def _add_shots(
             "team_id": team,
             "opponent_team_id": away_id if team == home_id else home_id,
             "player_id": "ws:" + r["playerId"],
+            "gk_id": None if keeper is None else "ws:" + keeper,
             "is_home": team == home_id,
             "period": period,
             "minute": r["minute"],

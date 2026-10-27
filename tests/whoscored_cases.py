@@ -11,7 +11,9 @@ Cell text follows the archive's shapes: ``id`` / ``playerId`` / ``relatedEventId
 ``eventId`` / ``minute`` / ``teamId`` as ``"N"``, ``second`` as ``"12"`` in some files and
 ``"12.0"`` in others, qualifiers as a Python literal (single quotes). Every event file has the
 real non-shot shape: ``PreMatch`` and ``PostGame`` rows, and non-shot rows with an empty
-``playerId`` and ``second``. Global ids never equal event ids.
+``playerId`` and ``second``. Global ids never equal event ids. Each team's ``FormationSet``
+(MS5.goalmouth) carries q30 / q131 with the keeper in slot 1 (``keeper_of``) and the archive's
+``second`` text ``"0.0"``.
 
 ``standard()`` is the archive every loader test starts from; tests mutate a fresh copy.
 """
@@ -41,12 +43,15 @@ QUALIFIER_NAMES = {
     25: "FromCorner",
     26: "DirectFreekick",
     28: "OwnGoal",
+    30: "InvolvedPlayers",
     55: "RelatedEventId",
     72: "LeftFoot",
     82: "Blocked",
     89: "OneOnOne",
     101: "SavedOffline",
     108: "Volley",
+    131: "TeamPlayerFormation",
+    145: "FormationSlot",
     160: "ThrowinSetPiece",
     212: "Length",
     214: "BigChance",
@@ -359,7 +364,12 @@ def _frame(
             Ev(next(n), eid, t, type_, period, minute, None, None, None, quals=[]) for t in (t1, t2)
         ]
 
-    rows = pair(1, "FormationSet", "PreMatch", 0) + pair(2, "Start", "FirstHalf", 0)
+    rows = [
+        Ev(next(n), 1, t, "FormationSet", "PreMatch", 0, None, None, None,
+           quals=lineup_quals(t), raw={"second": "0.0"})
+        for t in (t1, t2)
+    ]  # fmt: skip
+    rows += pair(2, "Start", "FirstHalf", 0)
     rows += [*first, *pair(3, "End", "FirstHalf", 47), *pair(4, "Start", "SecondHalf", 45)]
     rows += [*second, *pair(5, "End", "SecondHalf", end_minute)]
     if extra_time:
@@ -367,6 +377,23 @@ def _frame(
         rows += [*extra_time, *pair(7, "End", "SecondPeriodOfExtraTime", 121)]
     rows += [*shootout, *pair(8, "End", "PostGame", postgame_minute)]
     return rows
+
+
+def keeper_of(team: int) -> int:
+    """The fixture keeper of ``team`` (MS5.goalmouth): slot 1 of its FormationSet, and the
+    player of MAIN's Save row."""
+    return team * 10 + 1
+
+
+def lineup_quals(team: int, keeper: int | None = None) -> list[dict[str, Any]]:
+    """q30 InvolvedPlayers and q131 TeamPlayerFormation of a FormationSet (MS5.goalmouth §3.2):
+    11 starters and 2 substitutes (slot 0). The keeper is listed third, so slot 1 is not the
+    first entry; q30 is written with spaces after the commas and q131 without."""
+    keeper = keeper_of(team) if keeper is None else keeper
+    others = [team * 100 + k for k in range(2, 14)]
+    players = [*others[:2], keeper, *others[2:]]
+    slots = ["2", "3", "1", *(str(k) for k in range(4, 12)), "0", "0"]
+    return [q(30, ", ".join(map(str, players))), q(131, ",".join(slots))]
 
 
 def _pass(gid: int, eid: int, team: int, *quals: dict[str, Any], minute: int = 30) -> Ev:

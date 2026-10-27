@@ -68,7 +68,7 @@ Table = Literal["shots", "freeze_frames", "matches"]  # TABLES order is message 
 Role = Literal["identity", "pre_shot", "post_shot", "outcome", "restricted", "lineage"]
 RuleCheck = Callable[[pl.DataFrame], pl.Series]
 
-SCHEMA_VERSION: Final[str] = "1.1"
+SCHEMA_VERSION: Final[str] = "1.2"
 TABLES: Final[tuple[Table, ...]] = get_args(Table)
 ROLES: Final[tuple[Role, ...]] = get_args(Role)
 
@@ -287,6 +287,9 @@ SHOT_COLUMNS: Final[tuple[ColumnSpec, ...]] = (
                "The other team.", is_id=True),
     ColumnSpec("player_id", pl.String(), "identity", False,
                "Player who struck the ball.", is_id=True),
+    ColumnSpec("gk_id", pl.String(), "identity", True,
+               "Goalkeeper of the defending team on the pitch at the strike (lineup state); "
+               "null for own goals.", is_id=True),
     ColumnSpec("is_home", pl.Boolean(), "pre_shot", False,
                "Whether team_id is the home side (nominal at neutral venues)."),
     ColumnSpec("period", pl.Int8(), "pre_shot", False,
@@ -306,11 +309,13 @@ SHOT_COLUMNS: Final[tuple[ColumnSpec, ...]] = (
     ColumnSpec("end_z", pl.Float64(), "outcome", True,
                "Height at the end location, metres.", ge=0.0),
     ColumnSpec("goal_y", pl.Float64(), "post_shot", True,
-               "Provider's point on the goal plane (an estimate for saves); null if blocked.",
-               *_Y),
+               "Where the ball crossed or would cross the goal line, pitch-width metres (posts "
+               "30.34 / 37.66; `pitch.to_goal_frame` for the goal frame); StatsBomb stop points "
+               "more than one grid cell before the line projected by "
+               "`pitch.project_to_goal_line`; null if blocked.", *_Y),
     ColumnSpec("goal_z", pl.Float64(), "post_shot", True,
-               "Height on the goal plane, metres (crossbar at 2.44); null if blocked.",
-               ge=0.0),
+               "Height on the goal plane, metres (crossbar 2.44); the recorded height at a "
+               "StatsBomb stop point; null if blocked.", ge=0.0),
     ColumnSpec("gk_x", pl.Float64(), "pre_shot", True,
                "Goalkeeper defending the target goal at the strike.", *_X),
     ColumnSpec("gk_y", pl.Float64(), "pre_shot", True, "As gk_x.", *_Y),
@@ -649,6 +654,10 @@ SHOT_RULES: Final[tuple[FrameRule, ...]] = (
     _expr_rule("unassisted_has_no_assist_event", ("shot_id", "assist_type", "assist_event_id"),
                "assist_type 'none' must have a null assist_event_id",
                (_text("assist_type") != "none") | pl.col("assist_event_id").is_null()),
+    _expr_rule("gk_id_matches_own_goal", ("shot_id", "gk_id", "is_own_goal", "player_id"),
+               "gk_id must be null exactly for own goals and never equal player_id",
+               (pl.col("gk_id").is_null() == pl.col("is_own_goal"))
+               & (pl.col("gk_id") != pl.col("player_id"))),
 )
 # fmt: on
 
@@ -1125,7 +1134,7 @@ def empty_shots() -> pl.DataFrame:
     Examples
     --------
     >>> empty_shots().shape
-    (0, 47)
+    (0, 48)
     >>> validate_shots(empty_shots()).height
     0
     """

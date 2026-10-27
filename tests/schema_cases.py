@@ -81,6 +81,7 @@ SHOT_COLUMNS: tuple[tuple[str, pl.DataType, bool], ...] = (
     ("team_id", pl.String(), False),
     ("opponent_team_id", pl.String(), False),
     ("player_id", pl.String(), False),
+    ("gk_id", pl.String(), True),  # MS5.goalmouth §4 (schema 1.2)
     ("is_home", pl.Boolean(), False),
     ("period", pl.Int8(), False),
     ("minute", pl.Int16(), False),
@@ -229,6 +230,7 @@ SHOT_ID_COLUMNS = frozenset(
         "team_id",
         "opponent_team_id",
         "player_id",
+        "gk_id",
         "assist_event_id",
     }
 )
@@ -247,6 +249,7 @@ ROLE_SETS_FIXED: dict[str, tuple[str, ...]] = {
         "team_id",
         "opponent_team_id",
         "player_id",
+        "gk_id",
     ),
     "pre_shot": (
         "is_home",
@@ -310,6 +313,7 @@ SHOT_RULES: tuple[tuple[str, tuple[str, ...]], ...] = (
             "team_id",
             "opponent_team_id",
             "player_id",
+            "gk_id",
             "assist_event_id",
         ),
     ),
@@ -325,6 +329,7 @@ SHOT_RULES: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("minute_within_period", ("shot_id", "period", "minute")),
     ("clock_consistent", ("shot_id", "period", "minute", "second", "seconds_in_period")),
     ("unassisted_has_no_assist_event", ("shot_id", "assist_type", "assist_event_id")),
+    ("gk_id_matches_own_goal", ("shot_id", "gk_id", "is_own_goal", "player_id")),  # MS5 §4
 )
 FREEZE_FRAME_RULES: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("ids_share_prefix", ("shot_id", "player_id")),
@@ -377,6 +382,7 @@ def base_shot_rows() -> list[dict[str, Any]]:
         "team_id": "sb:901",
         "opponent_team_id": "sb:902",
         "player_id": SHOOTER_1,
+        "gk_id": "sb:90101",  # the opponent keeper in the freeze frame rows
         "is_home": True,
         "period": 1,
         "minute": 23,
@@ -414,6 +420,7 @@ def base_shot_rows() -> list[dict[str, Any]]:
         "team_id": "sb:902",
         "opponent_team_id": "sb:901",
         "player_id": "sb:90201",
+        "gk_id": "sb:90011",
         "is_home": False,
         "period": 2,
         "minute": 67,
@@ -451,6 +458,7 @@ def base_shot_rows() -> list[dict[str, Any]]:
         "team_id": "ws:911",
         "opponent_team_id": "ws:912",
         "player_id": "ws:91001",
+        "gk_id": "ws:91201",
         "is_home": False,
         "period": 1,
         "minute": 40,
@@ -493,6 +501,7 @@ def base_shot_rows() -> list[dict[str, Any]]:
         "team_id": "ws:912",
         "opponent_team_id": "ws:911",
         "player_id": "ws:92001",
+        "gk_id": None,  # an own goal faces no keeper (MS5 §4)
         "is_home": True,
         "period": 2,
         "minute": 78,
@@ -525,6 +534,7 @@ def base_shot_rows() -> list[dict[str, Any]]:
         "team_id": "sb:901",
         "opponent_team_id": "sb:903",
         "player_id": "sb:90002",
+        "gk_id": "sb:90301",
         "is_home": True,
         "period": 5,
         "minute": 121,

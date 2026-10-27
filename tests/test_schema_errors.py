@@ -74,7 +74,7 @@ def test_message_header_and_one_line_per_failure(valid_shots: pl.DataFrame) -> N
     err = _err(sc.with_value(valid_shots, "provider_xg", 0, 1.2))
     lines = str(err).splitlines()
     n = len(err.failures)
-    assert lines[0] == f"shots: {n} schema problem(s) (schema 1.1)"
+    assert lines[0] == f"shots: {n} schema problem(s) (schema 1.2)"
     assert len(lines) == n + 1
     assert all(line.startswith("  - ") for line in lines[1:])
 
@@ -606,7 +606,7 @@ def test_all_problems_reported_together(valid_shots: pl.DataFrame) -> None:
 
 
 def test_line_order_is_canonical_then_rules(valid_shots: pl.DataFrame) -> None:
-    df = sc.with_value(valid_shots, "schema_version", 0, "0.9")  # column 47
+    df = sc.with_value(valid_shots, "schema_version", 0, "0.9")  # column 48
     df = sc.with_value(df, "x", 0, 105.5)  # column 15, also trips distance/angle rules
     df = sc.with_value(df, "is_goal", 0, False)  # rule is_goal_matches_outcome
     order = [(f.columns[0] if len(f.columns) == 1 else None, f.check) for f in _err(df).failures]

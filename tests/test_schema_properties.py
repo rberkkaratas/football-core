@@ -54,7 +54,7 @@ def consistent_shot(draw: st.DrawFn) -> dict[str, Any]:
     row = sc.base_shot_rows()[0]
     provider = draw(st.sampled_from(sc.PROVIDERS))
     prefix = {"statsbomb": "sb:", "whoscored": "ws:"}[provider]
-    ids = ("shot_id", "competition_id", "season_id", "match_id", "team_id", "player_id")
+    ids = ("shot_id", "competition_id", "season_id", "match_id", "team_id", "player_id", "gk_id")
     for name in ids:
         row[name] = prefix + row[name].split(":", 1)[1]
     row["opponent_team_id"] = prefix + "999"
@@ -85,6 +85,7 @@ def consistent_shot(draw: st.DrawFn) -> dict[str, Any]:
         "assist_event_id": None if assist_type == "none" else prefix + "777",
         "is_goal": outcome == "goal",
         "is_own_goal": own_goal,
+        "gk_id": None if own_goal else row["gk_id"],  # MS5.goalmouth §4
         "on_target": outcome in ("goal", "saved") and not own_goal,
         "is_penalty": is_penalty,
         "period": period,

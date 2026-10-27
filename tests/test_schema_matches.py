@@ -194,7 +194,7 @@ def test_match_column_failures(case: str) -> None:
     assert all(f.table == "matches" for f in err.failures)
     assert all(f.rows == rows for f in err.failures if f.check != "dtype")
     header = str(err).splitlines()[0]
-    assert header == f"matches: {len(err.failures)} schema problem(s) (schema 1.1)"
+    assert header == f"matches: {len(err.failures)} schema problem(s) (schema 1.2)"
     if case == "string_gender_men":
         assert "'men'" in str(err) and "allowed: male, female" in str(err)
 

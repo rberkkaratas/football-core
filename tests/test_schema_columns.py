@@ -15,7 +15,7 @@ from football_core import schema
 
 
 def test_schema_version_and_constants() -> None:
-    assert schema.SCHEMA_VERSION == "1.1"  # MS3.matches: adding a canonical table is MINOR
+    assert schema.SCHEMA_VERSION == "1.2"  # MS5.goalmouth: adding gk_id is MINOR (PM E2)
     assert schema.TABLES == ("shots", "freeze_frames", "matches")
     assert schema.ID_PATTERN == r"^(sb|ws):\S+$"
     assert dict(schema.ID_PREFIXES) == {"statsbomb": "sb:", "whoscored": "ws:"}
@@ -56,7 +56,7 @@ def test_roles_constant_holds_the_six_base_roles() -> None:
 def test_shot_schema_is_pinned() -> None:
     assert pl.Schema(sc.SHOT_DTYPES) == schema.SHOT_SCHEMA
     assert tuple(schema.SHOT_SCHEMA.names()) == sc.SHOT_NAMES
-    assert len(sc.SHOT_NAMES) == 47
+    assert len(sc.SHOT_NAMES) == 48  # MS5.goalmouth: + gk_id
 
 
 def test_freeze_frame_schema_is_pinned() -> None:
@@ -288,8 +288,8 @@ def test_no_leakage_column_is_pre_shot() -> None:
 
 def test_role_counts_add_up() -> None:
     counts = {role: len(schema.column_names("shots", roles=role)) for role in schema.ROLES}
-    assert sum(counts.values()) == 47
-    assert counts["identity"] == 9
+    assert sum(counts.values()) == 48  # MS5.goalmouth: + gk_id (identity)
+    assert counts["identity"] == 10
     assert counts["pre_shot"] == 21
     assert counts["restricted"] == 1
     assert counts["lineage"] == 6
