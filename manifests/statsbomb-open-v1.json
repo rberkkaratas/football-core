@@ -4,7 +4,7 @@
   "builder": "statsbomb",
   "schema_version": "1.2",
   "data_dir": "../data/snapshots/statsbomb-open-v1",
-  "data_digest": "63002fdd75a8889807a717c20035b3c42132534408074f2ecdd40118b35d62be",
+  "data_digest": "067ddf5342cfd608045a15189a0b43008664d23f4c5ac4fab5ac403468e57ee5",
   "source": {
     "kind": "git",
     "uri": "https://github.com/statsbomb/open-data",
@@ -1627,8 +1627,8 @@
     },
     {
       "path": "shots.parquet",
-      "sha256": "aaa94d9cc32aebdd41d9aedea906af26c0fb293f9a630255c90b60f49fcaaba3",
-      "bytes": 24646883
+      "sha256": "a3666be62c42f50116bbd591481c207a016bdeca4915d70576d8bdfa432d2ad4",
+      "bytes": 24504861
     }
   ],
   "parquet": {
@@ -1643,7 +1643,7 @@
     "pandera": "0.34.1",
     "numpy": "2.5.4",
     "football_core": "0.1.0",
-    "football_core_git": "d5cd9468c7ffa4a6bb2a32fe3206349af9fb5852",
+    "football_core_git": "8ae8ce9e84d24030f284116ae1ccbcf4d119e1b4",
     "football_core_dirty": false
   }
 }
