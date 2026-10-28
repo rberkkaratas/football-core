@@ -200,3 +200,30 @@ def test_lattice_problems() -> None:
     ws_only = _goal_y(["whoscored"], [33.33333])
     assert goalmouth.lattice_problems(ws_only) == ()
     assert np.isfinite(off) and abs(off - sbc.snapped(off)) > 1e-7  # precondition: truly off
+
+
+# --- MS6 xgot-ready ratify 11: own goals with a bad location; 2- or 3-number lists ----------
+
+
+def test_grid_census_own_goal_bad_location() -> None:
+    """Ratify 11: an own goal whose ``location`` is missing, has a bool or has one number is left
+    out of its match's grid inference instead of raising, so match W (whole-yard shots) reads
+    coarse exactly as if its own goal were absent; a 3-number own-goal location still counts
+    (W stays fine). A shot (not an own goal) with a bool in ``location`` or ``end_location`` is a
+    bad row (bools are not numbers); a 3-number shot ``location`` is read like its 2 numbers."""
+    without = goalmouth.grid_census(_frame([r for r in ROWS if not (r[1] == W and r[2] ==
+                                                                    "own_goal")]))  # fmt: skip
+    assert without.rows() != EXPECTED  # precondition: W's own goal decides W's grid
+    for loc in (None, (True, 30.0), (5.5,)):
+        rows = [(*r[:3], loc, r[4]) if r[1] == W and r[2] == "own_goal" else r for r in ROWS]
+        assert goalmouth.grid_census(_frame(rows)).rows() == without.rows(), loc
+    rows = [(*r[:3], (5.5, 30.0, 0.0), r[4]) if r[1] == W and r[2] == "own_goal" else r
+            for r in ROWS]  # fmt: skip
+    assert goalmouth.grid_census(_frame(rows)).rows() == EXPECTED
+    three = [(*r[:3], (*r[3], 0.0), r[4]) if r[0] == "statsbomb" and r[3] is not None else r
+             for r in ROWS]  # fmt: skip
+    assert goalmouth.grid_census(_frame(three)).rows() == EXPECTED
+    for bad in [("statsbomb", C, "goal", (True, 41.0), (120.0, 39.0, 2.0)),
+                ("statsbomb", C, "goal", (101.0, 41.0), (120.0, 39.0, False))]:  # fmt: skip
+        with pytest.raises(ValueError, match=r"\b1 StatsBomb shot"):
+            goalmouth.grid_census(_frame([*ROWS, bad]))

@@ -17,4 +17,15 @@ The P2.1 goal-mouth checks, counts only. Every distance is computed in the goal 
   fails (`criterion_problems`: under 99 % of a provider's goals inside the frame, or the Opta
   direction not confirmed), so a loader regression fails a command after a snapshot rebuild.
 
+MS6 adds the StatsBomb recording grid, counts only:
+
+- `match_grids(shots)` gives each StatsBomb match's recording grid, `"coarse"` (1 yd) or
+  `"fine"` (0.1 yd), by the loader's `cell_offset` rule over the raw shot locations (null when no
+  row has a usable location). It is the one rule behind `grid_census` and the shot-models
+  population filter that leaves coarse-grid matches out of the StatsBomb xGOT fit and GSAx.
+- `grid_census(shots)` counts end locations on whole yards and on odd tenths by grid, outcome and
+  stop point; `lattice_problems` / `lattice_counts` check that every stored StatsBomb `goal_y` is on
+  the 0.1 yd goal-mouth lattice. `fc goalmouth` prints the fidelity mapping, the census and the
+  lattice line, and `--check` also fails when a value is off the lattice.
+
 ::: football_core.goalmouth

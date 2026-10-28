@@ -158,6 +158,24 @@ def test_census_header_mapping(
     assert MAPPING not in out and "y_odd_tenth" not in out and "lattice" not in out
 
 
+def test_grid_lines_order(capsys: pytest.CaptureFixture[str], manifests: tuple[Path, Path]) -> None:
+    """Ratify 3: ``cli.GRID_HEADER`` is the mapping line and is printed right before the grid
+    census (after the census tables); the lattice line, built from ``cli.MOUTH_CELL`` (the
+    loader's 0.1 yd cell), comes after the goal-share lines and is the last line."""
+    from football_core.io import statsbomb
+
+    assert cli.GRID_HEADER == MAPPING and cli.MOUTH_CELL == statsbomb.MOUTH_CELL == 0.1
+    rc, out, err = _run(capsys, "goalmouth", str(manifests[0]))
+    assert (rc, err) == (0, "")
+    lines = out.splitlines()
+    header = lines.index(cli.GRID_HEADER)
+    census = next(i for i, x in enumerate(lines) if "y_odd_tenth" in x)
+    shares = [i for i, x in enumerate(lines) if x.startswith("goals inside the frame:")]
+    lattice = lines.index("goal_y on the 0.1 yd lattice: statsbomb 3 of 3")
+    assert shares and header < census < min(shares) and max(shares) < lattice
+    assert lattice == len(lines) - 1
+
+
 def _rewrite(shots: pl.DataFrame, tmp_path: Path, name: str) -> Path:
     sc.write(tmp_path, {"shots": shots}, name=name)
     return sc.manifest_path(tmp_path, name)
