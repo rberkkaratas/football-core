@@ -18,6 +18,11 @@ provider has at least :data:`MIN_GOALS_IN_FRAME` of its goals inside the frame (
 when it does not hold, so a loader change that flips the Opta direction or pushes goals out of
 the frame fails a command, not only a reader of its counts.
 
+**StatsBomb grid (MS6).** :func:`grid_census` counts StatsBomb end locations on whole yards
+and on tenths, by the match's grid, outcome and where the ball stopped, and
+:func:`lattice_problems` checks that every stored ``goal_y`` sits on the 0.1 yd goal-mouth
+lattice that ``io.statsbomb.snap_goal_y`` puts projected points on.
+
 Counts only: nothing here returns a row, an id or a player, so the output may be quoted for
 WhoScored data too.
 """
@@ -27,12 +32,13 @@ from __future__ import annotations
 import json
 from collections.abc import Collection, Mapping, Sequence
 from types import MappingProxyType
-from typing import Final
+from typing import Any, Final
 
 import numpy as np
 import polars as pl
 
 from football_core import pitch, schema
+from football_core.io import statsbomb
 
 GOAL_TOLERANCE: Final[float] = 0.15  # metres outside the opening that still count as in
 WOODWORK_TOLERANCE: Final[float] = 0.3  # metres from the woodwork that still count as on it
@@ -49,6 +55,8 @@ OPTA_ZONES: Final[Mapping[int, str]] = MappingProxyType({
 # fmt: on
 _CENTRE: Final[float] = 1e-9  # metres; raw 50 maps to the centre up to rounding
 _COUNTS: Final = ("shots", "with_point", "in_frame", "near_woodwork")
+STOPS: Final = ("line", "near line", "projected", "no mouth")  # grid_census, in this order
+_GRID_COUNTS: Final = ("shots", "x_whole", "y_whole", "y_odd_tenth", "with_z", "z_whole")
 _ZONE_COUNTS: Final = ("shots", "shooter_left", "shooter_right", "centre")
 
 
@@ -255,3 +263,194 @@ def criterion_problems(table: pl.DataFrame, zones: pl.DataFrame | None) -> tuple
         elif not confirms_direction(zones):
             problems.append("whoscored: the zone qualifiers 76-87 do not confirm the direction")
     return tuple(problems)
+
+
+def _numbers(value: object) -> list[float] | None:
+    """A JSON list of 2 or 3 numbers as floats, else None."""
+    if not isinstance(value, list) or len(value) not in (2, 3):
+        return None
+    if any(not isinstance(v, int | float) or isinstance(v, bool) for v in value):
+        return None
+    return [float(v) for v in value]
+
+
+def _raw_ends(texts: Sequence[str | None], own: Sequence[bool]) -> tuple[list[Any], int]:
+    """Per row ``(location, end_location)`` from ``raw_qualifiers`` and the count of bad rows.
+
+    An own goal has no end location (``None``) and a bad own-goal location is left out of the
+    grid inference; a shot needs both."""
+    rows: list[Any] = []
+    bad = 0
+    for text, is_own in zip(texts, own, strict=True):
+        try:
+            event = json.loads(text) if isinstance(text, str) else None
+        except ValueError:
+            event = None
+        event = event if isinstance(event, dict) else {}
+        shot = event.get("shot")
+        loc = _numbers(event.get("location"))
+        end = (
+            None
+            if is_own
+            else _numbers(shot.get("end_location") if isinstance(shot, dict) else None)
+        )
+        if not is_own and (loc is None or end is None):
+            bad += 1
+        rows.append((loc, end))
+    return rows, bad
+
+
+def grid_census(shots: pl.DataFrame) -> pl.DataFrame:
+    """Count StatsBomb end locations on whole yards and on tenths, by grid, outcome and stop.
+
+    Parameters
+    ----------
+    shots : polars.DataFrame
+        C3 shots; reads ``provider``, ``match_id``, ``outcome``, ``is_own_goal`` and
+        ``raw_qualifiers`` (the raw ``location`` and ``shot.end_location``, in yards). Only
+        StatsBomb rows count, and own goals are left out (they have no end location).
+
+    Returns
+    -------
+    polars.DataFrame
+        One row per (``fidelity``, ``group``, ``stop``) present, sorted by fidelity, ``GROUPS``
+        order and ``STOPS`` order. ``fidelity`` is the match's grid by the loader's own rule
+        (``io.statsbomb.cell_offset`` over the raw ``location`` of all its StatsBomb rows):
+        ``"fine"`` equals ``metadata.shot_fidelity_version`` "2" and ``"coarse"`` "1" wherever
+        the matches file states one (the loader refuses a disagreement), and is inferred
+        otherwise. ``stop`` is ``"line"`` (raw end x 120), ``"near line"`` (a goal-mouth point
+        within one grid cell of the line, kept as recorded), ``"projected"`` (a goal-mouth
+        point ``io.statsbomb.is_projected`` moves: exactly the rows the snap moves) or ``"no
+        mouth"`` (a blocked shot or a 2-value end). Int64 counts: ``shots``, ``x_whole`` /
+        ``y_whole`` (the raw end x / y equals its rounding), ``y_odd_tenth`` (``round(y · 10)``
+        is odd), ``with_z`` (a 3-value end) and ``z_whole``. No StatsBomb row gives an empty
+        table with these columns.
+
+    Raises
+    ------
+    ValueError
+        A missing column, named; a null ``match_id`` on a StatsBomb row; a StatsBomb shot whose
+        ``raw_qualifiers`` lacks a 2- or 3-number ``location`` or ``shot.end_location`` (the
+        count in the message).
+
+    Examples
+    --------
+    >>> raw = ['{"location":[100.0,40.0],"shot":{"end_location":[120.0,39.9,1.0]}}',
+    ...        '{"location":[100.0,40.0],"shot":{"end_location":[118.0,41.0,0.5]}}']
+    >>> shots = pl.DataFrame({"provider": ["statsbomb"] * 2, "match_id": ["sb:1"] * 2,
+    ...                       "outcome": ["goal", "saved"], "is_own_goal": [False, False],
+    ...                       "raw_qualifiers": raw})
+    >>> grid_census(shots).rows()
+    [('coarse', 'goal', 'line', 1, 1, 0, 1, 1, 1), ('coarse', 'saved', 'projected', 1, 1, 1, 0, \
+1, 0)]
+    """
+    _require(shots, ("provider", "match_id", "outcome", "is_own_goal", "raw_qualifiers"),
+             "grid_census")  # fmt: skip
+    sb = shots.filter(pl.col("provider").cast(pl.String) == "statsbomb")
+    if nulls := sb["match_id"].null_count():
+        raise ValueError(f"grid_census: {nulls} StatsBomb row(s) have a null match_id")
+    own = sb["is_own_goal"].fill_null(False).to_list()
+    ends, bad = _raw_ends(sb["raw_qualifiers"].to_list(), own)
+    if bad:
+        raise ValueError(
+            f"grid_census: {bad} StatsBomb shot(s) lack a 2- or 3-number location or "
+            "shot.end_location in raw_qualifiers"
+        )
+    by_match: dict[str, list[list[float]]] = {}
+    for mid, (loc, _) in zip(sb["match_id"].to_list(), ends, strict=True):
+        by_match.setdefault(mid, []).extend([] if loc is None else [loc])
+    coarse = {m: statsbomb.cell_offset(0, locs, None) == statsbomb.COARSE_OFFSET
+              for m, locs in by_match.items()}  # fmt: skip
+    keep = [not o for o in own]
+    rows = sb.filter(pl.Series(keep, dtype=pl.Boolean))
+    end = [e for e, k in zip(ends, keep, strict=True) if k]
+    offset = np.array([statsbomb.COARSE_OFFSET if coarse[m] else statsbomb.FINE_OFFSET
+                       for m in rows["match_id"].to_list()], dtype=np.float64)  # fmt: skip
+    ex = np.array([e[1][0] for e in end], dtype=np.float64)
+    ey = np.array([e[1][1] for e in end], dtype=np.float64)
+    ez = np.array([e[1][2] if len(e[1]) == 3 else np.nan for e in end], dtype=np.float64)
+    blocked = (rows["outcome"].cast(pl.String) == "blocked").fill_null(False).to_numpy()
+    mouth = ~np.isnan(ez) & ~blocked
+    line, projected = ex == 120.0, mouth & statsbomb.is_projected(ex, offset)
+    stop = np.where(line, STOPS[0], np.where(projected, STOPS[2],
+                    np.where(mouth, STOPS[1], STOPS[3])))  # fmt: skip
+    flags = pl.DataFrame({
+        "fidelity": ["coarse" if coarse[m] else "fine" for m in rows["match_id"].to_list()],
+        "group": rows["outcome"].cast(pl.String),
+        "stop": stop.astype(str),
+        "shots": np.ones(rows.height, dtype=bool),
+        "x_whole": ex == np.round(ex),
+        "y_whole": ey == np.round(ey),
+        "y_odd_tenth": np.round(ey * 10) % 2 == 1,
+        "with_z": ~np.isnan(ez),
+        "z_whole": ez == np.round(ez),
+    }, schema_overrides={"fidelity": pl.String, "group": pl.String, "stop": pl.String})  # fmt: skip
+    table = flags.group_by("fidelity", "group", "stop").agg(
+        pl.col(_GRID_COUNTS).sum().cast(pl.Int64)
+    )
+    rank = {g: i for i, g in enumerate(GROUPS)}
+    order = pl.col("group").replace_strict(rank, default=None, return_dtype=pl.Int64)
+    stops = pl.col("stop").replace_strict({s: i for i, s in enumerate(STOPS)},
+                                          return_dtype=pl.Int64)  # fmt: skip
+    return table.sort(pl.col("fidelity"), order, stops, nulls_last=True)
+
+
+def lattice_problems(shots: pl.DataFrame) -> tuple[str, ...]:
+    """Whether every StatsBomb ``goal_y`` sits on the 0.1 yd goal-mouth lattice.
+
+    Counts the StatsBomb rows with a non-null ``goal_y`` that ``io.statsbomb.snap_goal_y``
+    moves by more than ``schema.DISTANCE_TOLERANCE``; a NaN counts as off (a loader bug, so the
+    check fails closed). WhoScored rows are ignored: Opta records the goal-plane point.
+
+    Returns
+    -------
+    tuple of str
+        One problem message when a value is off, else ``()``.
+
+    Raises
+    ------
+    ValueError
+        A missing column, named.
+
+    Examples
+    --------
+    >>> on = float(statsbomb.snap_goal_y([33.0])[0])
+    >>> shots = pl.DataFrame({"provider": ["statsbomb"] * 2, "goal_y": [on, None]})
+    >>> lattice_problems(shots)
+    ()
+    >>> lattice_problems(shots.with_columns(goal_y=pl.lit(on + 1e-6)))
+    ('statsbomb: 2 of 2 goal_y values are off the 0.1 yd goal-mouth lattice',)
+    """
+    off, points = lattice_counts(shots)
+    if off:
+        return (
+            f"statsbomb: {off} of {points} goal_y values are off the "
+            f"{statsbomb.MOUTH_CELL:g} yd goal-mouth lattice",
+        )
+    return ()
+
+
+def lattice_counts(shots: pl.DataFrame) -> tuple[int, int]:
+    """``(off, points)``: StatsBomb ``goal_y`` values off the lattice, of those not null.
+
+    The rule of :func:`lattice_problems` (NaN counts as off; WhoScored rows are ignored).
+
+    Raises
+    ------
+    ValueError
+        A missing column, named.
+
+    Examples
+    --------
+    >>> lattice_counts(pl.DataFrame({"provider": ["statsbomb", "whoscored"],
+    ...                              "goal_y": [float("nan"), 33.0]}))
+    (1, 1)
+    """
+    _require(shots, ("provider", "goal_y"), "lattice_problems")
+    sb = shots.filter(
+        (pl.col("provider").cast(pl.String) == "statsbomb") & pl.col("goal_y").is_not_null()
+    )
+    gy = sb["goal_y"].cast(pl.Float64).to_numpy()
+    with np.errstate(invalid="ignore"):  # NaN compares False: it counts as off
+        on = np.abs(statsbomb.snap_goal_y(gy) - gy) <= schema.DISTANCE_TOLERANCE
+    return int((~on).sum()), int(gy.size)

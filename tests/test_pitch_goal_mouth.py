@@ -296,3 +296,38 @@ def test_new_functions_have_doctests() -> None:
         pitch.project_to_goal_line,
     ):
         assert ">>>" in (inspect.getdoc(fn) or ""), fn.__name__
+
+
+# --- MS6 xgot-ready §2.1: the inverse of the goal-mouth y map ----------------------------------
+
+
+@settings(deadline=None, max_examples=150)
+@given(
+    provider=st.sampled_from(["statsbomb", "opta"]),
+    u=st.floats(0.0, 1.0, allow_nan=False),
+    m=st.floats(0.0, 68.0, allow_nan=False),
+)
+def test_goal_mouth_y_round_trip(provider: str, u: float, m: float) -> None:
+    """``goal_mouth_y_from_canonical`` inverts the y part of ``goal_mouth_to_canonical`` both
+    ways, over the provider's whole width (StatsBomb 80 -> 0 yd, Opta 0 -> 100)."""
+    raw = 80.0 * u if provider == "statsbomb" else 100.0 * u
+    metres = pitch.goal_mouth_to_canonical([raw], [0.0], provider)[0]
+    back = pitch.goal_mouth_y_from_canonical(metres, provider)
+    assert _one(back) == pytest.approx(raw, abs=TOL)
+    there = pitch.goal_mouth_y_from_canonical([m], provider)
+    again = pitch.goal_mouth_to_canonical(there, [0.0], provider)[0]
+    assert _one(again) == pytest.approx(m, abs=TOL)
+
+
+def test_goal_mouth_y_unknown_provider() -> None:
+    """§2.1: the doctest pair (30.34 m <-> 44.0 yd), the post faces, NaN stays NaN, values
+    beyond the end landmarks clip as ``_interp`` does, and an unknown provider raises naming
+    the allowed ones."""
+    got = pitch.goal_mouth_y_from_canonical([30.34, 37.66, 30.22, NAN, -5.0, 70.0], "statsbomb")
+    assert got.dtype == np.float64
+    assert got[[0, 1, 2]] == pytest.approx([44.0, 36.0, 44.0 + SB_FACE], abs=TOL)
+    assert math.isnan(got[3])
+    assert got[[4, 5]] == pytest.approx([80.0, 0.0], abs=TOL)  # y = 0 m is StatsBomb's 80 yd
+    assert ">>>" in (inspect.getdoc(pitch.goal_mouth_y_from_canonical) or "")
+    with pytest.raises(ValueError, match="opta.*statsbomb|statsbomb.*opta"):
+        pitch.goal_mouth_y_from_canonical([34.0], "wyscout")

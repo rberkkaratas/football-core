@@ -2,9 +2,11 @@
 
 ``fc snapshot`` builds and writes a snapshot, ``fc verify`` checks snapshots against their
 manifests, ``fc builders`` lists the builders, ``fc goalmouth`` prints the goal-mouth census
-of snapshots' shots (counts only, to stdout; it writes nothing; with ``--check`` it also exits 1
-when the MS5 goal-mouth criterion fails). Exit codes: 0 success, 1 a snapshot or verification
-problem or a failed ``--check``, 2 a usage error or a manifest that cannot be read. ``fc`` is
+of snapshots' shots and, for StatsBomb, the grid census (counts only, to stdout; it writes
+nothing; with ``--check`` it also exits 1 when the MS5 goal-mouth criterion fails or a
+StatsBomb ``goal_y`` is off the 0.1 yd goal-mouth lattice). Exit codes: 0 success, 1 a snapshot
+or verification problem or a failed ``--check``, 2 a usage error or a manifest that cannot be
+read. ``fc`` is
 also a shell builtin in zsh and bash, so run it as ``uv run fc``, or use the alias
 ``football-core`` in an activated shell.
 """
@@ -21,9 +23,14 @@ from typing import Final
 import polars as pl
 
 from football_core import goalmouth, schema
-from football_core.io import snapshot
+from football_core.io import snapshot, statsbomb
 
 PARAM_KEY_PATTERN: Final[str] = r"^[a-z][a-z0-9_-]*$"
+MOUTH_CELL: Final[float] = statsbomb.MOUTH_CELL
+GRID_HEADER: Final[str] = (
+    'fidelity: fine = shot_fidelity_version "2" (or inferred tenths); coarse = "1" (or '
+    "inferred whole yards)"
+)
 
 
 def _version() -> str:
@@ -65,8 +72,8 @@ def _parser() -> argparse.ArgumentParser:
     mouth.add_argument(
         "--check",
         action="store_true",
-        help="exit 1 unless >= 99%% of each provider's goals are in the frame and the Opta "
-        "direction is confirmed",
+        help="exit 1 unless >= 99%% of each provider's goals are in the frame, the Opta "
+        "direction is confirmed and every StatsBomb goal_y is on the 0.1 yd lattice",
     )
     return parser
 
@@ -151,7 +158,8 @@ def _verify(args: argparse.Namespace) -> int:
 
 
 def _goalmouth(args: argparse.Namespace) -> int:
-    columns = ("provider", "outcome", "is_own_goal", "goal_y", "goal_z", "raw_qualifiers")
+    columns = ("provider", "match_id", "outcome", "is_own_goal", "goal_y", "goal_z",
+               "raw_qualifiers")  # fmt: skip
     try:
         frames = [
             snapshot.load_snapshot(m, tables=["shots"])["shots"].select(columns)
@@ -161,6 +169,8 @@ def _goalmouth(args: argparse.Namespace) -> int:
         tables = [goalmouth.census(shots)]
         if (shots["provider"].cast(pl.String) == "whoscored").any():
             tables.append(goalmouth.zone_sides(shots))
+        sb = shots.filter(pl.col("provider").cast(pl.String) == "statsbomb")
+        grid = goalmouth.grid_census(sb) if sb.height else None
     except snapshot.ManifestError as e:
         return _error(e, 2)
     except (snapshot.SnapshotError, ValueError, OSError, pl.exceptions.PolarsError) as e:
@@ -168,15 +178,24 @@ def _goalmouth(args: argparse.Namespace) -> int:
     with pl.Config(tbl_rows=-1, tbl_cols=-1, tbl_hide_dataframe_shape=True):
         for table in tables:
             print(table)
+        if grid is not None:
+            print(GRID_HEADER)
+            print(grid)
     for provider, (inside, goals) in goalmouth.goal_shares(tables[0]).items():
         share = f"{inside / goals:.2%}" if goals else "n/a"
         print(f"goals inside the frame: {provider} {inside} of {goals} ({share})")
     if len(tables) == 2:
         confirmed = "yes" if goalmouth.confirms_direction(tables[1]) else "no"
         print(f"direction confirmed (zones 76-87): {confirmed}")
+    if grid is not None:
+        off, points = goalmouth.lattice_counts(sb)
+        print(f"goal_y on the {MOUTH_CELL:g} yd lattice: statsbomb {points - off} of {points}")
     if not args.check:
         return 0
-    problems = goalmouth.criterion_problems(tables[0], tables[1] if len(tables) == 2 else None)
+    problems = (
+        *goalmouth.criterion_problems(tables[0], tables[1] if len(tables) == 2 else None),
+        *goalmouth.lattice_problems(shots),
+    )
     for problem in problems:
         print(f"fc: check failed: {problem}", file=sys.stderr)
     return 1 if problems else 0

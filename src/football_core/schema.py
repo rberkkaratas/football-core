@@ -312,7 +312,8 @@ SHOT_COLUMNS: Final[tuple[ColumnSpec, ...]] = (
                "Where the ball crossed or would cross the goal line, pitch-width metres (posts "
                "30.34 / 37.66; `pitch.to_goal_frame` for the goal frame); StatsBomb stop points "
                "more than one grid cell before the line projected by "
-               "`pitch.project_to_goal_line`; null if blocked.", *_Y),
+               "`pitch.project_to_goal_line` and snapped to the 0.1 yd goal-mouth lattice "
+               "(`io.statsbomb.snap_goal_y`); null if blocked.", *_Y),
     ColumnSpec("goal_z", pl.Float64(), "post_shot", True,
                "Height on the goal plane, metres (crossbar 2.44); the recorded height at a "
                "StatsBomb stop point; null if blocked.", ge=0.0),

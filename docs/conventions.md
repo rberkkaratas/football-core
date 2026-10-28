@@ -108,8 +108,14 @@ line along the line from the shot location (`pitch.project_to_goal_line`, in met
 piecewise map). The rule is outcome-blind and grid-aware: a stop point within one grid cell of
 the line (raw end x ≥ 120 − 2c, with c the match's cell offset, so 1 yd on a coarse match and
 0.1 yd on a fine one) counts as on the line and is kept as recorded; every other point is
-projected, whatever the outcome. `goal_z` keeps the recorded height at the stop point (no
-trajectory model). Opta's `goalMouthY` / `goalMouthZ` is already the goal-plane point, so
+projected, whatever the outcome (`io.statsbomb.is_projected`). The goal-mouth y is recorded in
+tenths of a yard in every match, coarse ones included (even tenths are over-represented there,
+but no match keeps a coarser grid), so a projected point is **snapped to the centre of its
+0.1 yd goal-mouth cell** (`io.statsbomb.snap_goal_y`): projected StatsBomb points sit on the
+same 0.1 yd lattice as recorded ones, and the lattice no longer separates goals from saves.
+`fc goalmouth` prints the grid census (`goalmouth.grid_census`, counts by grid, outcome and
+stop point) and `--check` fails on a `goal_y` off the lattice (`goalmouth.lattice_problems`).
+`goal_z` keeps the recorded height at the stop point (no trajectory model). Opta's `goalMouthY` / `goalMouthZ` is already the goal-plane point, so
 WhoScored shots are not projected.
 
 **Opta direction and crossbar, confirmed (P2.1).** The crossbar at 38: saves reach at most 38.0

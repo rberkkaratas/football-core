@@ -208,6 +208,25 @@ def goal_mouth_to_canonical(
     return _interp(goal_y, frame.mouth_y, METRE_MOUTH_Y), gz
 
 
+def goal_mouth_y_from_canonical(goal_y: npt.ArrayLike, provider: Provider) -> FloatArray:
+    """Convert a stored goal-mouth y back to the provider's units (inverse of the y part of
+    :func:`goal_mouth_to_canonical`).
+
+    Values beyond the end landmarks clip to them, as every map here does; NaN stays NaN.
+
+    Raises
+    ------
+    ValueError
+        An unknown provider.
+
+    Examples
+    --------
+    >>> [round(float(v), 6) for v in goal_mouth_y_from_canonical([30.34, 34.0], "statsbomb")]
+    [44.0, 40.0]
+    """
+    return _interp(goal_y, METRE_MOUTH_Y, _frame(provider).mouth_y)
+
+
 def to_goal_frame(goal_y: npt.ArrayLike, goal_z: npt.ArrayLike) -> tuple[FloatArray, FloatArray]:
     """The goal frame: a stored goal-mouth point as metres from the goal centre.
 

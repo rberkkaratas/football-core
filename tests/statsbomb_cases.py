@@ -18,6 +18,7 @@ from __future__ import annotations
 import gzip
 import hashlib
 import json
+import math
 import threading
 import zlib
 from collections.abc import Callable, Iterable, Mapping, Sequence
@@ -75,6 +76,31 @@ def metres_y(y: float) -> float:
 def flipped(x: float, y: float, offset: float) -> tuple[float, float]:
     fx, fy = pitch.flip(*metres(x, y, offset))
     return float(fx), float(fy)
+
+
+# MS6 xgot-ready §2.2, written out here: the 0.1 yd goal-mouth cells and their tolerance.
+MOUTH_CELL, MOUTH_CELLS, SNAP_TOL = 0.1, 800, 1e-4
+
+
+def mouth_metres(yd: float) -> float:
+    """A StatsBomb goal-mouth y in yards as canonical metres (``pitch`` is the reference map)."""
+    return float(pitch.goal_mouth_to_canonical([yd], [0.0], "statsbomb")[0][0])
+
+
+def mouth_yards(m: float) -> float:
+    """The inverse of :func:`mouth_metres`, from the landmark tables (both piecewise linear)."""
+    return float(np.interp(m, pitch.METRE_MOUTH_Y, pitch.STATSBOMB.mouth_y))
+
+
+def snap_yards(yd: float) -> float:
+    """The centre of the 0.1 yd cell that holds ``yd`` (a value names the cell ending at it)."""
+    k = min(max(math.ceil(yd / MOUTH_CELL - SNAP_TOL), 1), MOUTH_CELLS)
+    return (k - 0.5) * MOUTH_CELL
+
+
+def snapped(m: float) -> float:
+    """MS6 §2.2: a projected goal_y (metres) moved to the centre of its 0.1 yd cell."""
+    return mouth_metres(snap_yards(mouth_yards(m)))
 
 
 def polygon(flat: Sequence[float]) -> list[list[float]]:

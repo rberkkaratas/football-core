@@ -33,11 +33,15 @@ possession, so StatsBomb set-piece shares are not comparable with Opta's phase-o
 
 **Goal mouth.** ``goal_y`` is the recorded goal-plane point when the ball was stopped within one
 grid cell of the goal line (raw ``end_x`` ≥ 120 − 2 × ``cell_offset``: 1 yd on coarse matches,
-0.1 yd on fine ones, where a point cannot be told from the line). A shot stopped earlier (a
-save, mostly) is projected: ``goal_y`` is where the line from the shot through the stop point
-meets the goal line (``pitch.project_to_goal_line``, in metres). The rule reads the stop point
-and the grid, never the outcome, so goals and saves get one rule. ``goal_z`` stays the recorded
-height.
+0.1 yd on fine ones, where a point cannot be told from the line; :func:`is_projected`). A shot
+stopped earlier (a save, mostly) is projected: ``goal_y`` is where the line from the shot
+through the stop point meets the goal line (``pitch.project_to_goal_line``, in metres), snapped
+to the centre of its ``MOUTH_CELL`` goal-mouth cell (:func:`snap_goal_y`). The goal-mouth y is
+recorded in tenths of a yard in every match, coarse ones included, where even tenths are
+over-represented but no match keeps a coarser grid; so a recorded point sits on the 0.1 yd
+lattice, and a projected one, continuous otherwise, is put on it too, and the lattice cannot
+tell goals from saves. The rule reads the stop point and the grid, never the outcome, so goals
+and saves get one rule. ``goal_z`` stays the recorded height.
 
 **Facing keeper.** ``gk_id`` is the defending team's goalkeeper from the lineup state, walked
 in event ``index`` order: the ``position.id == 1`` player of the last ``Starting XI`` or
@@ -74,6 +78,7 @@ from typing import Any, Final
 from urllib.parse import quote
 
 import numpy as np
+import numpy.typing as npt
 import polars as pl
 
 from football_core import pitch, schema
@@ -82,11 +87,16 @@ from football_core.io.snapshot import BuildRequest, BuildResult, StrPath
 
 Fetch = Callable[[str], bytes]
 Event = dict[str, Any]
+FloatArray = npt.NDArray[np.float64]
+BoolArray = npt.NDArray[np.bool_]
 
 OPEN_DATA_URL: Final[str] = "https://github.com/statsbomb/open-data"
 OPEN_DATA_COMMIT: Final[str] = "4b73468fc5b0f1950f9f66fada70ad3a4f9327cb"
 COARSE_OFFSET: Final[float] = 0.5  # half a cell of the 1 yd grid
-FINE_OFFSET: Final[float] = 0.05  # half a cell of the 0.1 yd grid
+MOUTH_CELL: Final[float] = 0.1  # yd: the goal-mouth y is recorded in tenths in every match
+MOUTH_CELLS: Final[int] = 800  # 80 yd / MOUTH_CELL
+SNAP_TOL: Final[float] = 1e-4  # in cells: a recorded value maps back to its cell up to rounding
+FINE_OFFSET: Final[float] = MOUTH_CELL / 2  # half a cell of the 0.1 yd grid
 DEFAULT_CACHE: Final[str] = "data/raw/statsbomb/open-data"
 TREE_PATH: Final = re.compile(
     r"data/(competitions|(matches/[0-9]+/[0-9]+|events/[0-9]+|lineups/[0-9]+|three-sixty/[0-9]+))\.json"
@@ -481,6 +491,68 @@ def cell_offset(
     return expected
 
 
+def is_projected(end_x: npt.ArrayLike, offset: npt.ArrayLike) -> BoolArray:
+    """Whether a goal-mouth stop point is projected: more than one grid cell short of the line.
+
+    A stop point within one cell of the goal line (raw ``end_x`` ≥ 120 − 2 × ``offset``) cannot
+    be told from the line, so its recorded goal-mouth y is kept. The loader and the grid census
+    (``football_core.goalmouth.grid_census``) both call this, so they count the same rows.
+
+    Parameters
+    ----------
+    end_x : array_like
+        Raw ``end_location[0]`` in StatsBomb yards.
+    offset : array_like
+        The match's :func:`cell_offset`.
+
+    Returns
+    -------
+    np.ndarray
+        Boolean; NaN ``end_x`` gives False.
+
+    Examples
+    --------
+    >>> is_projected([118.0, 119.0, 119.8, 119.9, 120.0], [0.5, 0.5, 0.05, 0.05, 0.05]).tolist()
+    [True, False, True, False, False]
+    """
+    ex = np.asarray(end_x, dtype=np.float64)
+    with np.errstate(invalid="ignore"):
+        out: BoolArray = ex < _GOAL_LINE_X - 2 * np.asarray(offset, dtype=np.float64) - 1e-9
+    return out
+
+
+def snap_goal_y(goal_y: npt.ArrayLike) -> FloatArray:
+    """Snap stored goal-mouth y values (metres) to the centre of their 0.1 yd goal-mouth cell.
+
+    A StatsBomb value names the cell that ends at it, so a point at ``yd`` goes to cell
+    ``k = ceil(yd / MOUTH_CELL − SNAP_TOL)`` (clipped to ``1 … MOUTH_CELLS``) and lands on its
+    centre ``(k − 0.5) · MOUTH_CELL``, mapped back to metres. A recorded point is already a cell
+    centre and stays where it is. The rule reads the value only, never an outcome.
+
+    Parameters
+    ----------
+    goal_y : array_like
+        ``shots.goal_y`` (pitch-width metres).
+
+    Returns
+    -------
+    np.ndarray
+        Snapped metres; NaN stays NaN, ±inf clip to the end cells.
+
+    Examples
+    --------
+    >>> yd = [39.97, 40.0, 39.9, 39.95]
+    >>> m = pitch.goal_mouth_to_canonical(yd, [0.0] * 4, "statsbomb")[0]
+    >>> back = pitch.goal_mouth_y_from_canonical(snap_goal_y(m), "statsbomb")
+    >>> [round(float(v), 6) for v in back]
+    [39.95, 39.95, 39.85, 39.95]
+    """
+    yd = pitch.goal_mouth_y_from_canonical(goal_y, "statsbomb")
+    k = np.clip(np.ceil(yd / MOUTH_CELL - SNAP_TOL), 1, MOUTH_CELLS)
+    snapped = pitch.goal_mouth_to_canonical((k - 0.5) * MOUTH_CELL, np.zeros_like(k), "statsbomb")
+    return snapped[0]
+
+
 def _vocab(table: Mapping[str, Any], value: object, match_id: int, field: str) -> Any:
     if not isinstance(value, str) or value not in table:
         allowed = ", ".join(repr(k) for k in table)
@@ -705,8 +777,7 @@ def _add_match(
         mouth = three and outcome_name != "Blocked"
         shots["gy"].append(ey - FINE_OFFSET if mouth else None)
         shots["gz"].append(ez if mouth else None)
-        # a stop point within one grid cell of the line cannot be told from the line
-        shots["project"].append(mouth and ex < _GOAL_LINE_X - 2 * c - 1e-9)
+        shots["project"].append(mouth and bool(is_projected(ex, c)))
         keeper = None
         if not penalty:
             for player in shot.get("freeze_frame", ()):
@@ -761,7 +832,7 @@ def _shots_frame(cols: defaultdict[str, list[Any]]) -> pl.DataFrame:
     goal_y, goal_z = pitch.goal_mouth_to_canonical(
         np.array(cols["gy"], np.float64), np.array(cols["gz"], np.float64), "statsbomb"
     )
-    projected = pitch.project_to_goal_line(x, y, end_x.to_numpy(), end_y.to_numpy())
+    projected = snap_goal_y(pitch.project_to_goal_line(x, y, end_x.to_numpy(), end_y.to_numpy()))
     goal_y = np.where(np.array(cols["project"], dtype=bool), projected, goal_y)  # None: False
     gk_x, gk_y = _metres(cols["gkx"], cols["gky"])
     derived = {

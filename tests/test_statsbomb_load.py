@@ -321,8 +321,9 @@ def test_goal_mouth_null_for_blocked_and_wayward(tmp_path: Path) -> None:
     assert m01["end_z"] is None
     assert _same(m03["end_z"], 0.4 * YARD)
     m04 = sbc.row(data.shots, "fake-shot-m04")
-    # MS5.goalmouth §3.1: a save stopped at 118.15 yd (fine grid) is projected to the goal line
-    assert _same([m04["goal_y"], m04["goal_z"]], [_goal_line_y(m04), 0.4 * YARD])
+    # MS5.goalmouth §3.1: a save stopped at 118.15 yd (fine grid) is projected to the goal line,
+    # MS6 xgot-ready §2.2: then moved to the centre of its 0.1 yd goal-mouth cell
+    assert _same([m04["goal_y"], m04["goal_z"]], [sbc.snapped(_goal_line_y(m04)), 0.4 * YARD])
 
 
 def test_end_z_in_metres(tmp_path: Path) -> None:
@@ -638,9 +639,10 @@ def test_cell_offset_coarse_and_fine(sb_standard: Any) -> None:
     # coarse 3-value end [110, 38.1, 1.0]: x - 0.5, y - 0.05 (goal-mouth tenths), z unshifted
     coarse = sbc.row(shots, sbc.COARSE_SHOT)
     assert _same([coarse["end_x"], coarse["end_y"]], [95.375, 35.78425])
-    # MS5.goalmouth §3.1: the save stopped at 110 yd is projected to the goal line
+    # MS5.goalmouth §3.1: the save stopped at 110 yd is projected to the goal line (MS6 §2.2:
+    # and snapped to its 0.1 yd goal-mouth cell)
     assert _same([coarse["goal_y"], coarse["goal_z"], coarse["end_z"]],
-                 [_goal_line_y(coarse), YARD, YARD])  # fmt: skip
+                 [sbc.snapped(_goal_line_y(coarse)), YARD, YARD])  # fmt: skip
     # a shot location at x = 120 is shifted like any other
     assert _same(xy(sbc.FINE_GOAL_LINE_SHOT), [99.5 + 5.95 / 6 * 5.5, 34.04575])
     assert _same(xy(sbc.COARSE_GOAL_LINE_SHOT), [99.5 + 5.5 * 5.5 / 6, 34.4575])
