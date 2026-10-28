@@ -18,8 +18,9 @@ provider has at least :data:`MIN_GOALS_IN_FRAME` of its goals inside the frame (
 when it does not hold, so a loader change that flips the Opta direction or pushes goals out of
 the frame fails a command, not only a reader of its counts.
 
-**StatsBomb grid (MS6).** :func:`grid_census` counts StatsBomb end locations on whole yards
-and on tenths, by the match's grid, outcome and where the ball stopped, and
+**StatsBomb grid (MS6).** :func:`match_grids` gives each StatsBomb match's recording grid (the
+loader's rule), :func:`grid_census` counts StatsBomb end locations on whole yards and on
+tenths, by the match's grid, outcome and where the ball stopped, and
 :func:`lattice_problems` checks that every stored ``goal_y`` sits on the 0.1 yd goal-mouth
 lattice that ``io.statsbomb.snap_goal_y`` puts projected points on.
 
@@ -300,6 +301,69 @@ def _raw_ends(texts: Sequence[str | None], own: Sequence[bool]) -> tuple[list[An
     return rows, bad
 
 
+def _grids(match_ids: Sequence[str], ends: Sequence[Any]) -> dict[str, str | None]:
+    """Per match: ``"coarse"`` / ``"fine"`` by ``io.statsbomb.cell_offset`` over the usable raw
+    locations of its rows, None for a match with none."""
+    by_match: dict[str, list[list[float]]] = {}
+    for mid, (loc, _) in zip(match_ids, ends, strict=True):
+        by_match.setdefault(mid, []).extend([] if loc is None else [loc])
+    return {
+        m: None if not locs else
+        "coarse" if statsbomb.cell_offset(0, locs, None) == statsbomb.COARSE_OFFSET else "fine"
+        for m, locs in by_match.items()
+    }  # fmt: skip
+
+
+def match_grids(shots: pl.DataFrame) -> pl.DataFrame:
+    """The recording grid of each StatsBomb match: ``"coarse"`` (1 yd) or ``"fine"`` (0.1 yd).
+
+    The rule :func:`grid_census` and the loader use: ``io.statsbomb.cell_offset`` over the raw
+    ``location`` of every StatsBomb row of the match (shots and own goals), so a match whose
+    shot locations are all whole yards is coarse. Its end locations then sit on the 1 yd grid,
+    a recording artefact that a goal-mouth model cannot tell from placement (MS6: coarse-grid
+    matches leave the StatsBomb xGOT fit). Pure: no file is read.
+
+    Parameters
+    ----------
+    shots : polars.DataFrame
+        C3 shots: ``provider``, ``match_id``, ``is_own_goal`` and ``raw_qualifiers`` (the raw
+        event JSON). Only StatsBomb rows count.
+
+    Returns
+    -------
+    polars.DataFrame
+        ``match_id`` (String) and ``fidelity`` (String: ``"coarse"``, ``"fine"``, or null for a
+        match none of whose rows has a 2- or 3-number ``location``, so the grid is unknown),
+        one row per StatsBomb match, sorted by ``match_id``. No StatsBomb row gives an empty
+        frame with these columns.
+
+    Raises
+    ------
+    ValueError
+        A missing column, named; a null ``match_id`` on a StatsBomb row.
+
+    Examples
+    --------
+    >>> raw = ['{"location":[100.0,40.0]}', '{"location":[100.3,40.0]}', '{}']
+    >>> shots = pl.DataFrame({"provider": ["statsbomb"] * 3, "match_id": ["sb:2", "sb:1", "sb:3"],
+    ...                       "is_own_goal": [False] * 3, "raw_qualifiers": raw})
+    >>> match_grids(shots).rows()
+    [('sb:1', 'fine'), ('sb:2', 'coarse'), ('sb:3', None)]
+    """
+    _require(shots, ("provider", "match_id", "is_own_goal", "raw_qualifiers"), "match_grids")
+    sb = shots.filter(pl.col("provider").cast(pl.String) == "statsbomb")
+    if nulls := sb["match_id"].null_count():
+        raise ValueError(f"match_grids: {nulls} StatsBomb row(s) have a null match_id")
+    ends, _ = _raw_ends(
+        sb["raw_qualifiers"].to_list(), sb["is_own_goal"].fill_null(False).to_list()
+    )
+    grids = _grids(sb["match_id"].to_list(), ends)
+    return pl.DataFrame(
+        {"match_id": list(grids), "fidelity": list(grids.values())},
+        schema={"match_id": pl.String, "fidelity": pl.String},
+    ).sort("match_id")
+
+
 def grid_census(shots: pl.DataFrame) -> pl.DataFrame:
     """Count StatsBomb end locations on whole yards and on tenths, by grid, outcome and stop.
 
@@ -356,11 +420,7 @@ def grid_census(shots: pl.DataFrame) -> pl.DataFrame:
             f"grid_census: {bad} StatsBomb shot(s) lack a 2- or 3-number location or "
             "shot.end_location in raw_qualifiers"
         )
-    by_match: dict[str, list[list[float]]] = {}
-    for mid, (loc, _) in zip(sb["match_id"].to_list(), ends, strict=True):
-        by_match.setdefault(mid, []).extend([] if loc is None else [loc])
-    coarse = {m: statsbomb.cell_offset(0, locs, None) == statsbomb.COARSE_OFFSET
-              for m, locs in by_match.items()}  # fmt: skip
+    coarse = {m: g == "coarse" for m, g in _grids(sb["match_id"].to_list(), ends).items()}
     keep = [not o for o in own]
     rows = sb.filter(pl.Series(keep, dtype=pl.Boolean))
     end = [e for e, k in zip(ends, keep, strict=True) if k]

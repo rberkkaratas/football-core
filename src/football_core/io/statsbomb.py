@@ -965,6 +965,106 @@ def load(checkout: StrPath, *, match_ids: Collection[int] | None = None) -> Open
     return OpenData(shot_table, frame_table, match_table, tuple(skipped))
 
 
+_SB_ID: Final = re.compile(r"sb:[0-9]+")
+_NAMES_SCHEMA: Final = {"player_id": pl.String, "player_name": pl.String, "names": pl.Int64}
+
+
+def _sb_ids(ids: Sequence[str], what: str) -> list[str]:
+    if isinstance(ids, str):
+        raise TypeError(f"{what} must be a sequence of 'sb:' ids, not a str")
+    if bad := [i for i in ids if not isinstance(i, str) or _SB_ID.fullmatch(i) is None]:
+        raise ValueError(f"{what}: {len(bad)} id(s) are not 'sb:<digits>', first {bad[0]!r}")
+    return list(ids)
+
+
+def player_names(
+    checkout: StrPath, match_ids: Sequence[str], *, player_ids: Sequence[str]
+) -> pl.DataFrame:
+    """The display name of each requested player, from the lineup files of ``match_ids``.
+
+    The display name is ``player_nickname`` when the lineup gives one, else ``player_name``
+    (the full legal name). Lineups are read in the order given (pass them by match date), and
+    a player listed under two spellings takes the one of the last match holding him; ``names``
+    counts the spellings, so a card can count the conflicts it resolved. Only the requested
+    ids are checked.
+
+    Parameters
+    ----------
+    checkout : str or path
+        The directory :func:`sync` returns.
+    match_ids : sequence of str
+        ``sb:`` match ids whose ``data/lineups/<id>.json`` are read, in this order.
+    player_ids : sequence of str
+        ``sb:`` player ids wanted.
+
+    Returns
+    -------
+    polars.DataFrame
+        ``player_id``, ``player_name`` (String) and ``names`` (Int64 >= 1), one row per requested
+        id, sorted by ``player_id``. No requested id gives an empty frame (no file read).
+
+    Raises
+    ------
+    TypeError
+        ``match_ids`` or ``player_ids`` is a ``str``.
+    ValueError
+        An id that is not ``sb:<digits>``; a requested id in no lineup (count and first id) or
+        with an empty or blank display name; JSON of an unexpected shape; an unreadable file.
+    FileNotFoundError
+        No ``tree.json``, or a lineup missing from the tree or the disk.
+
+    Examples
+    --------
+    >>> import json, tempfile
+    >>> lineup = [{"team_id": 1, "lineup": [
+    ...     {"player_id": 7, "player_name": "Ada Lovelace Byron", "player_nickname": "Ada"},
+    ...     {"player_id": 8, "player_name": "Grace Hopper", "player_nickname": None}]}]
+    >>> body = json.dumps(lineup).encode()
+    >>> with tempfile.TemporaryDirectory() as tmp:
+    ...     root = Path(tmp)
+    ...     _ = (root / "tree.json").write_text(json.dumps(
+    ...         {"data/lineups/1.json": [_blob_sha1(body), len(body)]}))
+    ...     (root / "data" / "lineups").mkdir(parents=True)
+    ...     _ = (root / "data" / "lineups" / "1.json.gz").write_bytes(gzip.compress(body))
+    ...     player_names(root, ["sb:1"], player_ids=["sb:8", "sb:7"]).rows()
+    [('sb:7', 'Ada', 1), ('sb:8', 'Grace Hopper', 1)]
+    """
+    matches, wanted = _sb_ids(match_ids, "match_ids"), set(_sb_ids(player_ids, "player_ids"))
+    if not wanted:
+        return pl.DataFrame(schema=_NAMES_SCHEMA)
+    root = Path(checkout)
+    tree = _read_tree(root / "tree.json")
+    last: dict[str, str] = {}
+    seen: defaultdict[str, set[str]] = defaultdict(set)
+    for mid in matches:
+        path, size = _cached(root, tree, f"data/lineups/{mid.removeprefix('sb:')}.json")
+        with _shape(f"'{path}'"):
+            for team in _read_json(path, size):
+                for row in team["lineup"]:
+                    pid = f"sb:{row['player_id']}"
+                    if pid not in wanted:
+                        continue
+                    nick = row.get("player_nickname")
+                    name = row["player_name"] if nick is None else nick
+                    if not isinstance(name, str) or not name.strip():
+                        raise ValueError(f"{mid}: player {pid} has the display name {name!r}")
+                    last[pid] = name
+                    seen[pid].add(name)
+    if missing := sorted(wanted - set(last)):
+        raise ValueError(
+            f"{len(missing)} requested player id(s) are in no lineup, first {missing[0]}"
+        )
+    ids = sorted(last)
+    return pl.DataFrame(
+        {
+            "player_id": ids,
+            "player_name": [last[i] for i in ids],
+            "names": [len(seen[i]) for i in ids],
+        },
+        schema=_NAMES_SCHEMA,
+    )
+
+
 reconcile_goals = schema.reconcile_goals  # moved to schema (C5); kept as an alias
 
 
