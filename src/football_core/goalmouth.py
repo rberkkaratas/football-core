@@ -24,8 +24,9 @@ tenths, by the match's grid, outcome and where the ball stopped, and
 :func:`lattice_problems` checks that every stored ``goal_y`` sits on the 0.1 yd goal-mouth
 lattice that ``io.statsbomb.snap_goal_y`` puts projected points on.
 
-Counts only: nothing here returns a row, an id or a player, so the output may be quoted for
-WhoScored data too.
+Counts only, with one exception: :func:`match_grids` returns one row per StatsBomb
+``match_id`` (open data). Nothing returns a WhoScored row, id or player, so every other output
+may be quoted for WhoScored data too.
 """
 
 from __future__ import annotations

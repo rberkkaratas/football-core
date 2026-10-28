@@ -192,9 +192,13 @@ def test_lattice_problems() -> None:
     half = sbc.mouth_metres(41.05) + schema.DISTANCE_TOLERANCE / 2  # inside the tolerance: on
     clean = _goal_y(["statsbomb"] * 5 + ["whoscored"], [*on, half, None, 33.33333])
     assert goalmouth.lattice_problems(clean) == ()
-    dirty = clean.vstack(_goal_y(["statsbomb", "statsbomb"], [off, float("nan")]))
+    # just past the tolerance (a tolerance x 100 mutant reads it as on the lattice)
+    edge = sbc.mouth_metres(41.05) + 1.5 * schema.DISTANCE_TOLERANCE
+    tol = schema.DISTANCE_TOLERANCE
+    assert tol < abs(edge - sbc.snapped(edge)) <= 2 * tol  # precondition: on the boundary in float
+    dirty = clean.vstack(_goal_y(["statsbomb"] * 3, [off, float("nan"), edge]))
     assert goalmouth.lattice_problems(dirty) == (
-        "statsbomb: 2 of 6 goal_y values are off the 0.1 yd goal-mouth lattice",
+        "statsbomb: 3 of 7 goal_y values are off the 0.1 yd goal-mouth lattice",
     )
     assert goalmouth.lattice_problems(dirty.clear()) == ()
     ws_only = _goal_y(["whoscored"], [33.33333])

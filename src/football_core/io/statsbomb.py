@@ -284,7 +284,7 @@ def sync(
         raise ValueError(f"commit must be 40 lowercase hex characters, not {commit!r}")
     get = _http_get if fetch is None else fetch
     # Check before resolving: a data/ symlinked out of the repo then fails closed (C6 rule).
-    snapshot._check_ignored(Path(os.path.abspath(cache)) / commit / "tree.json")
+    snapshot.check_ignored(Path(os.path.abspath(cache)) / commit / "tree.json")
     dest = snapshot._resolve(Path(cache)) / commit
     tree_file = dest / "tree.json"
     if not tree_file.exists():
@@ -361,7 +361,7 @@ def fetch_logo(cache: StrPath = DEFAULT_CACHE, *, fetch: Fetch | None = None) ->
     >>> fetch_logo().name  # doctest: +SKIP
     'SB - Icon Lockup - Colour positive.png'
     """
-    snapshot._check_ignored(Path(os.path.abspath(logo_file(cache))))
+    snapshot.check_ignored(Path(os.path.abspath(logo_file(cache))))
     target = snapshot._resolve(logo_file(cache))
     if target.is_file() and _blob_sha1(target.read_bytes()) == LOGO_BLOB:
         return target

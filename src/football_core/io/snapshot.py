@@ -987,8 +987,25 @@ def _existing_anchor(path: Path) -> Path:
 _DATA_HINT: Final = "add `data/*` to the repo's .gitignore or run from the repo root (--root)"
 
 
-def _check_ignored(path: Path, what: str = "data file", hint: str = _DATA_HINT) -> None:
-    """Refuse a data path that git would not ignore (fail closed when git cannot tell)."""
+def check_ignored(path: Path, what: str = "data file", hint: str = _DATA_HINT) -> None:
+    """Refuse a data path that git would not ignore (fail closed when git cannot tell).
+
+    Outside a git work tree there is nothing to refuse. The model repos call it before writing
+    a git-ignored file (the prediction cache, the StatsBomb keeper chart).
+
+    Raises
+    ------
+    ValueError
+        ``path`` (unresolved) is in a work tree and git would not ignore it, naming ``what``
+        and ``hint``; git cannot answer.
+
+    Examples
+    --------
+    >>> import tempfile
+    >>> with tempfile.TemporaryDirectory() as tmp:
+    ...     check_ignored(Path(tmp) / "shots.parquet") is None
+    True
+    """
     # git -C on a missing directory looks like "no work tree", and so does one reached through a
     # symlinked data/ that points outside the repo: anchor at the nearest real directory.
     anchor = _existing_anchor(path.parent)
@@ -1012,13 +1029,13 @@ def _check_ignored(path: Path, what: str = "data file", hint: str = _DATA_HINT) 
 
 
 def _guard(r: Path, name: str, tables: Iterable[str], *, private: bool = False) -> None:
-    """Refuse data files that git would not ignore, one ``_check_ignored`` per table file, and
+    """Refuse data files that git would not ignore, one ``check_ignored`` per table file, and
     for private data the manifest too."""
     for table in sorted(tables):
-        _check_ignored(r / DATA_SUBDIR / name / f"{table}.parquet")
+        check_ignored(r / DATA_SUBDIR / name / f"{table}.parquet")
     if private:
         hint = f"add `{MANIFEST_SUBDIR}/{name}.json` (or a glob) to the repo's .gitignore"
-        _check_ignored(r / MANIFEST_SUBDIR / f"{name}.json", "private manifest", hint)
+        check_ignored(r / MANIFEST_SUBDIR / f"{name}.json", "private manifest", hint)
 
 
 def _remove(path: Path) -> None:
