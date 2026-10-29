@@ -552,7 +552,8 @@ def previous_play(
     dict of str to str or None
         Normalised id (``"12"``) -> normalised id of the previous play event, or None for the
         first of its period. A repeated id (a synthetic ``OffsideGiven`` can reuse one) maps
-        from its last row.
+        from its last *play* row; a skipped row never overrides a play row with its id, so
+        walking ids back from a play event stays on earlier play events.
 
     Raises
     ------
@@ -577,9 +578,15 @@ def previous_play(
         raise TypeError("skip must be a set of event types, not a single str")
     df = _previous_rows(events, where, frozenset(skip))
     ids = df["id"].to_list()
-    return {
-        i: None if p is None else ids[p] for i, p in zip(ids, df["_prev"].to_list(), strict=True)
-    }
+    out: dict[str, str | None] = {}
+    played: set[str] = set()
+    for i, p, play in zip(ids, df["_prev"].to_list(), df["_play"].to_list(), strict=True):
+        if play:
+            played.add(i)
+        elif i in played:  # a skipped row that reuses a play row's id never overrides it
+            continue
+        out[i] = None if p is None else ids[p]
+    return out
 
 
 def _qualifier_ids(text: str | None, where: str) -> dict[int, object]:

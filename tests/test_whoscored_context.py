@@ -110,6 +110,7 @@ LEVELS: dict[str, tuple[str, str, tuple[dict[str, Any], ...], str]] = {
     "opp_save": (B, "Save", (), "opp_keeper"),
     "opp_save_other_q": (B, "Save", (q(212, "1.0"),), "opp_keeper"),  # near miss on q94
     "opp_punch": (B, "Punch", (), "opp_keeper"),
+    "opp_punch_q94": (B, "Punch", (q(94),), "opp_keeper"),  # q94 makes only a Save a block
     "opp_claim": (B, "Claim", (), "opp_keeper"),
     "opp_smother": (B, "Smother", (), "opp_keeper"),
     "opp_pickup": (B, "KeeperPickup", (), "opp_keeper"),
@@ -403,6 +404,24 @@ def test_repeated_id_maps_from_last_row_and_context_reads_rows() -> None:
     assert prev["12"] == "13"  # the last row's previous play (the first row's would be "11")
     assert prev["13"] == "12"
     assert context(*rows)["13"] == ("opp_clearance", False)
+
+
+def test_skipped_row_reusing_an_id_never_overrides_a_play_row() -> None:
+    """Run7 assessment (architect 1): a synthetic ``OffsideGiven`` that reuses a play row's id
+    leaves that row's entry, so walking ids two back from the shot stays in file order (pass 5
+    -> pass 6 -> shot 7 -> B's pass 8 -> OffsideGiven reusing 6 gives "5", not B's later
+    pass "8"); an offside pass whose ``OffsideGiven`` reuses its id does not map to itself."""
+    rows = [*start(), ev(5, 5, A, "Pass", 10, 0), ev(6, 6, A, "Pass", 10, 2),
+            ev(7, 7, A, SHOT, 10, 4), ev(8, 9, B, "Pass", 10, 20),
+            ev(6, 10, B, "OffsideGiven", 10, 22)]  # fmt: skip
+    df = frame(*rows)
+    assert df["id"].to_list().count("6") == 2  # precondition: the skip row reuses a play id
+    prev = whoscored.previous_play(df, "'f'")
+    assert prev == {"1": None, "2": None, "5": None, "6": "5", "7": "6", "8": "7"}
+    assert prev[str(prev["7"])] == "5"  # two back from the shot
+    offside = [*start(), ev(5, 5, A, "Pass", 10, 0), ev(6, 6, A, "Pass", 10, 2),
+               ev(6, 7, B, "OffsideGiven", 10, 2)]  # fmt: skip
+    assert whoscored.previous_play(frame(*offside), "'f'")["6"] == "5"
 
 
 @pytest.mark.parametrize("period", ["PreMatch", "PostGame", None])
