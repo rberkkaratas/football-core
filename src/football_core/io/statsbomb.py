@@ -850,9 +850,9 @@ def _shots_frame(cols: defaultdict[str, list[Any]]) -> pl.DataFrame:
     }
     constant = {"provider": "statsbomb", "schema_version": schema.SCHEMA_VERSION}
     for name in schema.SHOT_SCHEMA:
-        if name not in derived:
+        if name not in derived:  # all null: big_chance, provider_psxg, prev_action, rebound
             values = [constant.get(name)] * len(own) if name not in cols else cols[name]
-            derived[name] = pl.Series(name, values)  # big_chance, provider_psxg: all null
+            derived[name] = pl.Series(name, values)
     frame = pl.DataFrame({name: derived[name] for name in schema.SHOT_SCHEMA})
     return schema.cast_to_schema(frame, "shots")
 

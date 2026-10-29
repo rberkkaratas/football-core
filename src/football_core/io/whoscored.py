@@ -53,6 +53,7 @@ import math
 import re
 from collections import defaultdict
 from collections.abc import Mapping, Sequence
+from collections.abc import Set as AbstractSet
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
@@ -151,7 +152,30 @@ MATCH_ID_COLUMNS: Final = (
     "match_id", "validation_status", "competition_key", "validated_home_team",
     "validated_away_team",
 )
+PLAY_SKIP: Final[frozenset[str]] = frozenset({
+    "Start", "End", "FormationSet", "FormationChange", "SubstitutionOn", "SubstitutionOff",
+    "Card", "CornerAwarded", "OffsideGiven", "OffsideProvoked", "Error", "ChanceMissed",
+    "GoodSkill", "PenaltyFaced", "CrossNotClaimed", "ShieldBallOpp", "KeeperSweeper",
+    "Challenge", "Aerial", "Foul", "Dispossessed",
+})
+SAME_ACTION: Final[Mapping[str, str]] = MappingProxyType({
+    "Pass": "pass", "TakeOn": "take_on", "BallRecovery": "regain", "Interception": "regain",
+    "Tackle": "regain", "BlockedPass": "regain", **dict.fromkeys(SHOT_TYPES, "shot"),
+})
+OPP_ACTION: Final[Mapping[str, str]] = MappingProxyType({
+    "Clearance": "opp_clearance", "Save": "opp_keeper", "Punch": "opp_keeper",
+    "Claim": "opp_keeper", "Smother": "opp_keeper", "KeeperPickup": "opp_keeper",
+})
 # fmt: on
+"""Event types that are not play, skipped by :func:`previous_play`. Stoppages and admin rows
+(start, end, formations, substitutions, cards, offside, corner awarded, ...) and duel or
+annotation rows that sit beside the play they describe. ``Error`` carries Opta's outcome links
+(q169 LeadingToAttempt names the shot, q170 LeadingToGoal a goal), so reading it would leak the
+result. ``ChanceMissed`` is an annotator's label grading an earlier situation, not play."""
+OUTFIELD_BLOCK: Final = 94  # Opta "Def block": a Save event by an outfield blocker
+OPPOSITE_RELATED: Final = 233  # the other team's eventId this event answers
+SAVE_TYPES: Final = frozenset({"Save", "Punch", "Claim", "Smother"})  # the q233 guard
+REBOUND_S: Final = 3  # seconds, inclusive
 _COUNT_KEYS: Final = (*DROP_REASONS, *SCORE_NOTES, SHORT_NOTE)
 _OPTIONAL_COORDS: Final = ("goalMouthY", "goalMouthZ", "blockedX", "blockedY")
 _EVENT_FILE: Final = re.compile(r"([0-9]{2})([0-9]{2})([0-9]{4})_([0-9]+)\.csv")
@@ -471,6 +495,171 @@ def _facing_keepers(df: pl.DataFrame, where: str) -> dict[str, str | None]:
     return faced
 
 
+def _previous_rows(events: pl.DataFrame, where: str, skip: frozenset[str]) -> pl.DataFrame:
+    """Per row (file order): normalised ``id``, the clock ``_t`` of a play row, and ``_prev``,
+    the row index of the last earlier play row of its period (null for none)."""
+    play_expr = ~pl.col("type").is_in(list(skip)) & pl.col("period").is_in(list(PERIODS))
+    df = events.with_row_index("_row").with_columns(_play=play_expr.fill_null(False))
+    _check_text(df, "id", INT_TEXT, where, empty=False)
+    play = df.filter("_play")
+    for column in ("minute", "second"):
+        _check_text(play, column, INT_TEXT, where, empty=False)
+    clock = pl.col("minute").str.replace(_NORM, "").cast(pl.Int64) * 60 + pl.col(
+        "second"
+    ).str.replace(_NORM, "").cast(pl.Int64)
+    play = play.with_columns(_t=clock).with_columns(
+        _before=pl.col("_t").cum_max().shift(1).over("period")
+    )
+    if (bad := play.filter(pl.col("_t") < pl.col("_before"))).height:
+        r = bad.row(0, named=True)
+        raise ValueError(
+            f"{where}: event {r['id']!r} at {r['_t']} s comes after an earlier play event of "
+            f"period {r['period']!r} at {r['_before']} s: play events are not in clock order"
+        )
+    df = df.join(play.select("_row", "_t"), on="_row", how="left", maintain_order="left")
+    prev = pl.when("_play").then(pl.col("_row")).shift(1).forward_fill().over("period")
+    return df.with_columns(
+        pl.col("id").str.replace(_NORM, ""),
+        _prev=pl.when(pl.col("period").is_null()).then(None).otherwise(prev),
+    )
+
+
+def previous_play(
+    events: pl.DataFrame, where: str, *, skip: AbstractSet[str] = PLAY_SKIP
+) -> dict[str, str | None]:
+    """Every event id -> the id of the last earlier play event of its period, in file order.
+
+    The one event-order rule of the archive: the previous play event is the last earlier row of
+    the same period, in **file order**, whose type is not in ``skip``; rows of
+    ``NON_PLAY_PERIODS`` (and a null period) are skipped. File order, not a clock sort, because
+    events on the same second are ordered only in the file. It fails closed: a play row with a
+    null or malformed clock, or a play row later on the clock (``minute * 60 + second``) than a
+    play row after it in the file, is an error.
+
+    Parameters
+    ----------
+    events : polars.DataFrame
+        One match's event rows as String columns (``id``, ``period``, ``type``, ``minute``,
+        ``second``; ``id`` as in the CSV, e.g. ``"12.0"``), in file order.
+    where : str
+        The file, for messages.
+    skip : set of str, default PLAY_SKIP
+        Event types that are not play. Another use passes its own (shot-creating actions keep
+        ``Foul``, so a foul drawn counts).
+
+    Returns
+    -------
+    dict of str to str or None
+        Normalised id (``"12"``) -> normalised id of the previous play event, or None for the
+        first of its period. A repeated id (a synthetic ``OffsideGiven`` can reuse one) maps
+        from its last row.
+
+    Raises
+    ------
+    TypeError
+        ``skip`` is a bare str.
+    ValueError
+        A malformed id; a play row with a null or malformed ``minute`` / ``second``; play rows
+        out of clock order (naming ``where``, the event id and both clocks).
+
+    Examples
+    --------
+    >>> ev = pl.DataFrame({
+    ...     "id": ["1.0", "2.0", "3.0", "4.0"], "period": ["FirstHalf"] * 4,
+    ...     "type": ["Pass", "Foul", "SavedShot", "Pass"], "minute": ["0", "0", "0", "1"],
+    ...     "second": ["5", "7", "7", "2"]})
+    >>> previous_play(ev, "demo")
+    {'1': None, '2': '1', '3': '1', '4': '3'}
+    >>> previous_play(ev, "demo", skip=frozenset())["3"]
+    '2'
+    """
+    if isinstance(skip, str):
+        raise TypeError("skip must be a set of event types, not a single str")
+    df = _previous_rows(events, where, frozenset(skip))
+    ids = df["id"].to_list()
+    return {
+        i: None if p is None else ids[p] for i, p in zip(ids, df["_prev"].to_list(), strict=True)
+    }
+
+
+def _qualifier_ids(text: str | None, where: str) -> dict[int, object]:
+    return {q["type"]["value"]: q.get("value") for q in _qualifiers(text, where)}
+
+
+def shot_context(events: pl.DataFrame, where: str) -> dict[str, tuple[str, bool]]:
+    """Shot id -> (``prev_action``, ``rebound``) for every shot row of one match.
+
+    ``prev_action`` reads the previous play event (:func:`previous_play`, default skip): by the
+    shooting team, ``SAME_ACTION`` of its type (``"other"`` when unlisted); by the opponent,
+    ``OPP_ACTION`` (``"opp_other"`` when unlisted), except that a ``Save`` with q94 (Opta's
+    outfield "Def block") is ``"opp_block"``. No previous play event gives ``"other"``.
+    ``rebound``: the shooting team's last earlier shot row of the period is at most
+    ``REBOUND_S`` seconds earlier on the clock (3 s True, 4 s False). Own goals are the
+    caller's to null.
+
+    Parameters
+    ----------
+    events : polars.DataFrame
+        One match's events in file order, as :func:`previous_play` plus ``teamId``,
+        ``eventId`` and ``qualifiers``.
+    where : str
+        The file, for messages.
+
+    Raises
+    ------
+    ValueError
+        As :func:`previous_play`; a shot outside periods 1-5; a previous opponent row of
+        ``SAVE_TYPES`` whose q233 names this shot's ``eventId`` (a save of this very shot
+        recorded before it); a malformed qualifier list on such a row.
+
+    Examples
+    --------
+    >>> ev = pl.DataFrame({
+    ...     "id": ["1", "2", "3", "4"], "eventId": ["1", "1", "2", "3"],
+    ...     "teamId": ["7", "8", "7", "7"], "period": ["FirstHalf"] * 4,
+    ...     "type": ["SavedShot", "Save", "Goal", "Goal"], "minute": ["0"] * 4,
+    ...     "second": ["1", "2", "3", "9"],
+    ...     "qualifiers": ["[]", "[{'type': {'value': 94, 'displayName': 'DefBlock'}}]", "[]",
+    ...                    "[]"]})
+    >>> shot_context(ev, "demo")
+    {'1': ('other', False), '3': ('opp_block', True), '4': ('shot', False)}
+    """
+    shots = events.filter(pl.col("type").is_in(list(SHOT_TYPES)))
+    if (bad := shots.filter(~pl.col("period").is_in(list(PERIODS)).fill_null(True))).height:
+        raise ValueError(f"{where}: event {bad['id'][0]!r}: shot period {bad['period'][0]!r}")
+    df = _previous_rows(events, where, PLAY_SKIP).with_columns(
+        pl.col("teamId", "eventId").str.replace(_NORM, "")
+    )
+    rows = df.select("id", "teamId", "eventId", "type", "qualifiers", "period", "_t").rows()
+    last_shot: dict[tuple[object, object], int] = {}
+    out: dict[str, tuple[str, bool]] = {}
+    for i, p in enumerate(df["_prev"].to_list()):
+        sid, team, event_id, kind, _, period, t = rows[i]
+        if kind not in SHOT_TYPES:
+            continue
+        if p is None:
+            action = "other"
+        elif rows[p][1] == team:
+            action = SAME_ACTION.get(rows[p][3], "other")
+        else:
+            action = OPP_ACTION.get(rows[p][3], "opp_other")
+            if rows[p][3] in SAVE_TYPES:
+                q = _qualifier_ids(rows[p][4], f"{where}: event {rows[p][0]}")
+                named = q.get(OPPOSITE_RELATED)
+                if named is not None and _norm(str(named)) == event_id:
+                    raise ValueError(
+                        f"{where}: event {rows[p][0]!r} ({rows[p][3]}) names shot {sid!r} "
+                        f"(eventId {event_id}) in q{OPPOSITE_RELATED} but comes before it"
+                    )
+                if rows[p][3] == "Save" and OUTFIELD_BLOCK in q:
+                    action = "opp_block"
+        before = last_shot.get((period, team))
+        rebound = before is not None and t - rows[before][6] <= REBOUND_S
+        last_shot[(period, team)] = i
+        out[sid] = (action, rebound)
+    return out
+
+
 def _shot_rows(df: pl.DataFrame, where: str) -> pl.DataFrame:
     """The shot rows, every cell checked, ids normalised, numbers cast."""
     shots = df.filter(pl.col("type").is_in(list(SHOT_TYPES)))
@@ -501,6 +690,7 @@ def _add_shots(
     """Append the match's shots to ``cols``; return the periods 1-2 goals (home, away)."""
     shots = _shot_rows(df, where)
     keepers = _facing_keepers(df, where)
+    context = shot_context(df, where)
     refs = shots.select("teamId", pl.col("relatedEventId").alias("eventId")).drop_nulls().unique()
     targets: defaultdict[tuple[str, str], list[Target]] = defaultdict(list)
     linked = df.with_columns(pl.col("eventId").str.replace(_NORM, "")).join(
@@ -586,6 +776,8 @@ def _add_shots(
             "on_target": outcome in schema.ON_TARGET_OUTCOMES and not own,
             "first_time": None if own else FIRST_TOUCH in q,
             "one_on_one": None if own else ONE_ON_ONE in q,
+            "prev_action": None if own else context[r["id"]][0],
+            "rebound": None if own else context[r["id"]][1],
             "big_chance": None if own else BIG_CHANCE in q,
             "raw_type": r["type"],
             "raw_qualifiers": raw,

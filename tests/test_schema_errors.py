@@ -74,7 +74,7 @@ def test_message_header_and_one_line_per_failure(valid_shots: pl.DataFrame) -> N
     err = _err(sc.with_value(valid_shots, "provider_xg", 0, 1.2))
     lines = str(err).splitlines()
     n = len(err.failures)
-    assert lines[0] == f"shots: {n} schema problem(s) (schema 1.2)"
+    assert lines[0] == f"shots: {n} schema problem(s) (schema 1.3)"
     assert len(lines) == n + 1
     assert all(line.startswith("  - ") for line in lines[1:])
 

@@ -195,6 +195,8 @@ def _open_shot_expected() -> dict[str, Any]:
         "follows_dribble": False,
         "open_goal": False,
         "one_on_one": False,
+        "prev_action": None,  # PR1.xg-context: not derived for StatsBomb
+        "rebound": None,
         "big_chance": None,
         "deflected": False,
         "provider_xg": 0.31,

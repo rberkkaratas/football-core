@@ -112,14 +112,16 @@ provider-prefixed string (`sb:…` / `ws:…`) whose prefix matches `provider`.
 | 38 | `follows_dribble` | Boolean | yes |  | pre_shot | Tri-state: shot follows a dribble (StatsBomb only). |
 | 39 | `open_goal` | Boolean | yes |  | pre_shot | Tri-state: open goal. |
 | 40 | `one_on_one` | Boolean | yes |  | pre_shot | Tri-state: one on one. |
-| 41 | `big_chance` | Boolean | yes |  | restricted | Tri-state: Opta big chance; null for StatsBomb. |
-| 42 | `deflected` | Boolean | yes |  | post_shot | Tri-state: shot deflected. |
-| 43 | `provider_xg` | Float64 | yes | [0, 1] | lineage | Provider xG, a benchmark only. |
-| 44 | `provider_psxg` | Float64 | yes | [0, 1] | lineage | Provider post-shot xG, a benchmark only. |
-| 45 | `assist_event_id` | String | yes | id | lineage | Event id of the assisting pass (Opta: resolved to the global id). |
-| 46 | `raw_type` | String | no | check `non_empty` | lineage | Provider event type (encodes the outcome, so never a feature). |
-| 47 | `raw_qualifiers` | String | no | check `json` | lineage | Raw provider shot object / qualifier list as JSON text. |
-| 48 | `schema_version` | String | no | check `schema_version` | lineage | Schema version the row was written with. |
+| 41 | `prev_action` | Enum(PREV_ACTIONS) | yes | pass, take_on, regain, shot, other, opp_clearance, opp_block, opp_keeper, opp_other | pre_shot | The last play event before the shot in its period (whoscored.PLAY_SKIP types skipped), by the shooting team (pass ... other) or the opponent (opp_*). opp_block: an outfield block (Opta Save with q94); opp_keeper: a keeper's save, punch, claim, smother or pick-up. Stoppages are skipped, so on a set piece it is the play before the stoppage. null: not derived (StatsBomb) or own goal. Keeper-derived column (xG only, MS6 E5). |
+| 42 | `rebound` | Boolean | yes |  | pre_shot | The shooting team's previous shot in the period is at most 3 s earlier on the clock; null: not derived (StatsBomb) or own goal. Keeper-derived (xG only, MS6 E5). |
+| 43 | `big_chance` | Boolean | yes |  | restricted | Tri-state: Opta big chance; null for StatsBomb. |
+| 44 | `deflected` | Boolean | yes |  | post_shot | Tri-state: shot deflected. |
+| 45 | `provider_xg` | Float64 | yes | [0, 1] | lineage | Provider xG, a benchmark only. |
+| 46 | `provider_psxg` | Float64 | yes | [0, 1] | lineage | Provider post-shot xG, a benchmark only. |
+| 47 | `assist_event_id` | String | yes | id | lineage | Event id of the assisting pass (Opta: resolved to the global id). |
+| 48 | `raw_type` | String | no | check `non_empty` | lineage | Provider event type (encodes the outcome, so never a feature). |
+| 49 | `raw_qualifiers` | String | no | check `json` | lineage | Raw provider shot object / qualifier list as JSON text. |
+| 50 | `schema_version` | String | no | check `schema_version` | lineage | Schema version the row was written with. |
 
 Cross-column rules (`SHOT_RULES`): ids match the provider's prefix; the two teams differ;
 `distance_m` and `angle_rad` agree with `pitch.shot_distance` / `pitch.opening_angle` (to
@@ -193,7 +195,7 @@ rules. Pass 2 runs only when pass 1 finds nothing. Both passes pin pandera's con
 problem, naming the column and the bad values:
 
 ```text
-shots: 2 schema problem(s) (schema 1.2)
+shots: 2 schema problem(s) (schema 1.3)
   - column 'shot_id': duplicate value(s) 'sb:a1' (rows 0, 1)
   - rule 'is_goal_matches_outcome' (shot_id, is_goal, outcome): is_goal must equal outcome == 'goal'; failed for shot_id='sb:a2', is_goal=False, outcome='goal' (rows 2)
 ```
@@ -206,7 +208,7 @@ shots: 2 schema problem(s) (schema 1.2)
 
 ## Versioning
 
-`SCHEMA_VERSION = "1.2"` (`MAJOR.MINOR`), written on every row and checked exactly, and
+`SCHEMA_VERSION = "1.3"` (`MAJOR.MINOR`), written on every row and checked exactly, and
 `load_snapshot` refuses a snapshot written with any other version. So **every bump, MINOR
 included, requires rebuilding every snapshot** (`fc snapshot ...`), and the consumers' outputs
 that print the data digest (the shot-models cards and README) change and must be regenerated.
@@ -221,6 +223,7 @@ Adding a canonical table is a MINOR bump. Snapshots that hold a table of that na
 schema (`schema: null`) are refused by the manifest reader and must be rebuilt, never
 migrated: a 1.0 `matches` table (String `gender`, `schema: null`) is rebuilt from the raw
 data. 1.1 added the matches table; 1.2 added the nullable `gk_id` column and its rule
-`gk_id_matches_own_goal`; no existing enum changed.
+`gk_id_matches_own_goal`; 1.3 added the nullable WhoScored pre-shot context columns
+`prev_action` (a new enum, `PREV_ACTIONS`) and `rebound`; no existing enum changed.
 
 ::: football_core.schema

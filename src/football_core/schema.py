@@ -68,7 +68,7 @@ Table = Literal["shots", "freeze_frames", "matches"]  # TABLES order is message 
 Role = Literal["identity", "pre_shot", "post_shot", "outcome", "restricted", "lineage"]
 RuleCheck = Callable[[pl.DataFrame], pl.Series]
 
-SCHEMA_VERSION: Final[str] = "1.2"
+SCHEMA_VERSION: Final[str] = "1.3"
 TABLES: Final[tuple[Table, ...]] = get_args(Table)
 ROLES: Final[tuple[Role, ...]] = get_args(Role)
 
@@ -99,6 +99,21 @@ TECHNIQUES: Final = (
 )
 OUTCOMES: Final = ("goal", "saved", "blocked", "post", "off_target")
 GENDERS: Final = ("male", "female")  # male first: the indicator reference
+# The last play event before a shot (WhoScored, io.whoscored.shot_context): the shooting team's
+# action, then the opponent's. opp_block is an outfield block (Opta records it as a Save with q94),
+# opp_keeper a keeper's save, punch, claim, smother or pick-up. Settled before the first snapshot:
+# appending a level is a MAJOR bump.
+PREV_ACTIONS: Final = (
+    "pass",
+    "take_on",
+    "regain",
+    "shot",
+    "other",
+    "opp_clearance",
+    "opp_block",
+    "opp_keeper",
+    "opp_other",
+)
 
 PROVIDER: Final = pl.Enum(PROVIDERS)
 BODY_PART: Final = pl.Enum(BODY_PARTS)
@@ -107,6 +122,7 @@ ASSIST_TYPE: Final = pl.Enum(ASSIST_TYPES)
 TECHNIQUE: Final = pl.Enum(TECHNIQUES)
 OUTCOME: Final = pl.Enum(OUTCOMES)
 GENDER: Final = pl.Enum(GENDERS)
+PREV_ACTION: Final = pl.Enum(PREV_ACTIONS)
 POLYGON: Final = pl.List(pl.Array(pl.Float64(), 2))
 
 ID_PREFIXES: Final[Mapping[str, str]] = MappingProxyType({"statsbomb": "sb:", "whoscored": "ws:"})
@@ -348,6 +364,17 @@ SHOT_COLUMNS: Final[tuple[ColumnSpec, ...]] = (
                "Tri-state: shot follows a dribble (StatsBomb only)."),
     ColumnSpec("open_goal", pl.Boolean(), "pre_shot", True, "Tri-state: open goal."),
     ColumnSpec("one_on_one", pl.Boolean(), "pre_shot", True, "Tri-state: one on one."),
+    ColumnSpec("prev_action", PREV_ACTION, "pre_shot", True,
+               "The last play event before the shot in its period (whoscored.PLAY_SKIP types "
+               "skipped), by the shooting team (pass ... other) or the opponent (opp_*). "
+               "opp_block: an outfield block (Opta Save with q94); opp_keeper: a keeper's save, "
+               "punch, claim, smother or pick-up. Stoppages are skipped, so on a set piece it is "
+               "the play before the stoppage. null: not derived (StatsBomb) or own goal. "
+               "Keeper-derived column (xG only, MS6 E5)."),
+    ColumnSpec("rebound", pl.Boolean(), "pre_shot", True,
+               "The shooting team's previous shot in the period is at most 3 s earlier on the "
+               "clock; null: not derived (StatsBomb) or own goal. Keeper-derived (xG only, MS6 "
+               "E5)."),
     ColumnSpec("big_chance", pl.Boolean(), "restricted", True,
                "Tri-state: Opta big chance; null for StatsBomb."),
     ColumnSpec("deflected", pl.Boolean(), "post_shot", True, "Tri-state: shot deflected."),
@@ -1135,7 +1162,7 @@ def empty_shots() -> pl.DataFrame:
     Examples
     --------
     >>> empty_shots().shape
-    (0, 48)
+    (0, 50)
     >>> validate_shots(empty_shots()).height
     0
     """

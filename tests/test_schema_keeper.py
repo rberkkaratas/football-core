@@ -13,7 +13,7 @@ RULE_COLUMNS = ("shot_id", "gk_id", "is_own_goal", "player_id")
 
 
 def test_gk_id_spec() -> None:
-    assert schema.SCHEMA_VERSION == "1.2"
+    assert schema.SCHEMA_VERSION == "1.3"  # PR1.xg-context: + prev_action, rebound
     names = [c.name for c in schema.SHOT_COLUMNS]
     assert names.index("gk_id") == names.index("player_id") + 1
     (spec,) = [c for c in schema.SHOT_COLUMNS if c.name == "gk_id"]

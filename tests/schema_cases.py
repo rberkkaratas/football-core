@@ -47,6 +47,11 @@ TECHNIQUES = (
 )
 OUTCOMES = ("goal", "saved", "blocked", "post", "off_target")
 GENDERS = ("male", "female")  # MS3.matches §4.1: male first, the indicator reference
+# PR1.xg-context §2.1 (schema 1.3): the football reviewer's level names, in physical order
+PREV_ACTIONS = (
+    "pass", "take_on", "regain", "shot", "other",
+    "opp_clearance", "opp_block", "opp_keeper", "opp_other",
+)  # fmt: skip
 VOCABULARIES: dict[str, tuple[str, ...]] = {
     "PROVIDERS": PROVIDERS,
     "BODY_PARTS": BODY_PARTS,
@@ -55,6 +60,7 @@ VOCABULARIES: dict[str, tuple[str, ...]] = {
     "TECHNIQUES": TECHNIQUES,
     "OUTCOMES": OUTCOMES,
     "GENDERS": GENDERS,
+    "PREV_ACTIONS": PREV_ACTIONS,
 }
 # Enum dtype constant name -> vocabulary constant name
 ENUM_CONSTANTS = {
@@ -65,6 +71,7 @@ ENUM_CONSTANTS = {
     "TECHNIQUE": "TECHNIQUES",
     "OUTCOME": "OUTCOMES",
     "GENDER": "GENDERS",
+    "PREV_ACTION": "PREV_ACTIONS",
 }
 
 POLYGON = pl.List(pl.Array(pl.Float64, 2))
@@ -112,6 +119,8 @@ SHOT_COLUMNS: tuple[tuple[str, pl.DataType, bool], ...] = (
     ("follows_dribble", pl.Boolean(), True),
     ("open_goal", pl.Boolean(), True),
     ("one_on_one", pl.Boolean(), True),
+    ("prev_action", pl.Enum(PREV_ACTIONS), True),  # PR1.xg-context §2.1 (schema 1.3)
+    ("rebound", pl.Boolean(), True),
     ("big_chance", pl.Boolean(), True),
     ("deflected", pl.Boolean(), True),
     ("provider_xg", pl.Float64(), True),
@@ -273,6 +282,8 @@ ROLE_SETS_FIXED: dict[str, tuple[str, ...]] = {
         "follows_dribble",
         "open_goal",
         "one_on_one",
+        "prev_action",
+        "rebound",
     ),
     "restricted": ("big_chance",),
     "lineage": (
@@ -367,6 +378,8 @@ def _false_flags() -> dict[str, Any]:
         "one_on_one": False,
         "big_chance": None,  # StatsBomb has no big-chance attribute
         "deflected": False,
+        "prev_action": None,  # schema 1.3: not derived for StatsBomb
+        "rebound": None,
     }
 
 
@@ -486,6 +499,8 @@ def base_shot_rows() -> list[dict[str, Any]]:
         "follows_dribble": None,
         "open_goal": None,
         "one_on_one": False,
+        "prev_action": "opp_block",  # schema 1.3: after an outfield block, a rebound
+        "rebound": True,
         "big_chance": False,
         "deflected": None,
         "provider_xg": None,
@@ -522,6 +537,8 @@ def base_shot_rows() -> list[dict[str, Any]]:
         "is_goal": True,
         "is_own_goal": True,
         "on_target": False,
+        "prev_action": None,  # schema 1.3: own goal
+        "rebound": None,
         "assist_event_id": None,
         "raw_type": "Goal",
         "raw_qualifiers": '[{"type": "OwnGoal"}]',

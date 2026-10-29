@@ -259,12 +259,16 @@ def test_two_ok_copies_fail_validation(tmp_path: Path) -> None:
 
 def test_row_scope(tmp_path: Path) -> None:
     """Non-shot rows that no q55 references are read for team, period and minute only: odd
-    qualifier text and coordinates there are legal (spec §3.1 row scope)."""
+    qualifier text and coordinates there are legal (spec §3.1 row scope). Amended for
+    PR1.xg-context §2.2: a play row's ``second`` is now read by ``previous_play`` (fail closed,
+    ``test_whoscored_context``), so the empty ``second`` moved to a skipped type (Card)."""
     fx = wsc.standard()
     main = fx.match("main")
     other = main.event(wsc.RECOVERY_B90)
     assert all(e.related != other.eid or e.team != other.team for e in main.events)
-    other.raw |= {"qualifiers": "[{'type': (1, 2)}]", "x": "1_0", "y": "", "second": ""}
+    other.raw |= {"qualifiers": "[{'type': (1, 2)}]", "x": "1_0", "y": ""}
+    main.events.insert(main.events.index(other), wsc.Ev(2_901_000_299, 91, wsc.B, "Card",
+                                                        "SecondHalf", 69, None))  # fmt: skip
     main.event(wsc.DUPKEY_A50_2).raw["playerId"] = ""
     wsc.write_archive(tmp_path, fx)
     archive = whoscored.load(tmp_path)
