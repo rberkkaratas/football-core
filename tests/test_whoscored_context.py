@@ -359,3 +359,60 @@ def test_loader_writes_context(ws_standard: Any, case: str) -> None:
     assert shots.filter(~own)["prev_action"].null_count() == 0
     assert shots.filter(~own)["rebound"].null_count() == 0
     assert shots.filter(own)["prev_action"].null_count() == int(own.sum())
+
+
+REB_SAVE, REB_SHOT = 2_901_000_301, 2_901_000_302  # MAIN-range ids unused by the archive
+
+
+def test_loader_rebound_and_outfield_block(ws_standard: Any, tmp_path: Any) -> None:
+    """Integration census (PR1.xg-context): the standard archive loads no ``rebound`` True and
+    no ``opp_block`` shot, so the loader is also run on MAIN with an outfield block of BLOCKED
+    (B's ``Save`` with q94, 8:31) and A's shot one second later (8:32): it loads as
+    (opp_block, True), and BLOCKED (8:30) keeps its own value."""
+    std = ws_standard.archive.shots
+    assert not std["rebound"].any() and "opp_block" not in set(std["prev_action"].drop_nulls())
+    fx = wsc.mini()
+    m = fx.matches[0]
+    i = next(k for k, e in enumerate(m.events) if e.gid == wsc.BLOCKED)
+    m.events[i + 1 : i + 1] = [
+        wsc.Ev(REB_SAVE, 61, wsc.B, "Save", "FirstHalf", 8, 31, "10.0", "45.0", wsc.B * 10 + 4,
+               quals=[q(94)]),
+        wsc.Ev(REB_SHOT, 41, wsc.A, "MissedShots", "FirstHalf", 8, 32, "92.0", "45.0",
+               quals=[q(22), q(20)], mouth=("55.0", "20.0")),
+    ]  # fmt: skip
+    shots = wsc.load_fixture(tmp_path, fx).archive.shots
+    got = dict(shots.select(pl.col("shot_id"), pl.struct("prev_action", "rebound")).rows())
+    before = std.filter(pl.col("shot_id") == f"ws:{wsc.BLOCKED}").select("prev_action", "rebound")
+    assert got[f"ws:{REB_SHOT}"] == {"prev_action": "opp_block", "rebound": True}
+    assert got[f"ws:{wsc.BLOCKED}"] == before.row(0, named=True)
+
+
+# --- build ratify (runs/PR1/xg-context/build.md §2.2 items 1-2) --------------------------------
+
+
+def test_repeated_id_maps_from_last_row_and_context_reads_rows() -> None:
+    """Ratify 1: a repeated event id (a synthetic ``OffsideGiven`` can reuse one) maps, in
+    ``previous_play``, from its *last* row; ``shot_context`` reads the previous play row by
+    index, so the shot after B's clearance id 12 is ``opp_clearance`` although a later row
+    (A's pass) reuses id 12. A lookup by id would give that pass ("pass")."""
+    rows = [*start(), ev(11, 5, A, "Pass", 10, 0), ev(12, 9, B, "Clearance", 10, 2),
+            ev(13, 6, A, SHOT, 10, 4), ev(12, 7, A, "Pass", 10, 20)]  # fmt: skip
+    df = frame(*rows)
+    assert df["id"].to_list().count("12") == 2  # precondition: the id repeats
+    prev = whoscored.previous_play(df, "'f'")
+    assert prev["12"] == "13"  # the last row's previous play (the first row's would be "11")
+    assert prev["13"] == "12"
+    assert context(*rows)["13"] == ("opp_clearance", False)
+
+
+@pytest.mark.parametrize("period", ["PreMatch", "PostGame", None])
+def test_shot_context_refuses_a_shot_outside_periods_1_to_5(period: str | None) -> None:
+    """Ratify 2: ``shot_context`` (public, total) raises ValueError naming ``where`` and the shot
+    for a shot row outside periods 1-5 (a non-play or null period), before reading anything else;
+    the same row type in FirstHalf passes (near miss)."""
+    ok = [*start(), ev(11, 5, A, "Pass", 10, 0), ev(13, 6, A, SHOT, 10, 4)]
+    assert context(*ok)["13"] == ("pass", False)
+    bad = [*ok, ev(14, 7, A, SHOT, 95, 0)]
+    bad[-1]["period"] = period
+    with pytest.raises(ValueError, match=r"fixture\.csv.*'14'.*shot period"):
+        context(*bad)

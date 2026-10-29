@@ -625,7 +625,7 @@ def shot_context(events: pl.DataFrame, where: str) -> dict[str, tuple[str, bool]
     {'1': ('other', False), '3': ('opp_block', True), '4': ('shot', False)}
     """
     shots = events.filter(pl.col("type").is_in(list(SHOT_TYPES)))
-    if (bad := shots.filter(~pl.col("period").is_in(list(PERIODS)).fill_null(True))).height:
+    if (bad := shots.filter((~pl.col("period").is_in(list(PERIODS))).fill_null(True))).height:
         raise ValueError(f"{where}: event {bad['id'][0]!r}: shot period {bad['period'][0]!r}")
     df = _previous_rows(events, where, PLAY_SKIP).with_columns(
         pl.col("teamId", "eventId").str.replace(_NORM, "")
