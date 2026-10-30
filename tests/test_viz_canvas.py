@@ -3,6 +3,7 @@ legend and axes helpers (spec ``runs/CH1/style-shots`` §2.3)."""
 
 from __future__ import annotations
 
+import dataclasses
 import itertools
 from pathlib import Path
 from typing import Any
@@ -324,3 +325,67 @@ def test_axes_and_measure() -> None:
     assert len(patches) == 1
     big, small = c.measure("Goals", "title"), c.measure("Goals", "caption")
     assert big[0] > small[0] > 0 and big[1] > small[1] > 0
+
+
+# ---- run8-ch1 assessment: limits reached at their boundary, plain text, providers ---------------
+
+
+def test_subtitle_three_lines_raise() -> None:
+    """Assessment item 12 (C4): a subtitle that fits 3 lines but not 2 raises (the 2-line rule
+    at its boundary, not only at 4+ lines)."""
+    probe = cc.make()
+    three = cc.words_to_width(probe, "subtitle", 2.2 * CONTENT, 2.8 * CONTENT)
+    assert viz._wrap(probe, three, "subtitle", CONTENT, 3) is not None  # precondition
+    with pytest.raises(ValueError, match="subtitle needs more than 2 line"):
+        cc.make(subtitle=three)
+
+
+def test_inter_title_never_takes_the_fallback_step() -> None:
+    """Assessment item 12 (M17): ``TITLE_FALLBACK_PT`` is for the fallback family only; an Inter
+    title that fits 2 lines only at 15 pt raises instead of shrinking."""
+    probe = cc.make()
+    assert cc.theme_of(probe).family == viz.FONT_FAMILY  # precondition: Inter registered
+    text = cc.words_to_width(probe, "title", 2400.0, 2470.0)
+    assert viz._wrap(probe, text, "title", CONTENT, 2, viz.TITLE_MIN_PT) is None  # precondition
+    assert viz._wrap(probe, text, "title", CONTENT, 2, viz.TITLE_FALLBACK_PT) is not None
+    with pytest.raises(ValueError, match="title needs more than 2 lines"):
+        cc.make(title=text)
+
+
+def test_title_text_is_plain() -> None:
+    """Assessment item 15: a title is drawn as typed, never as mathtext ("$5 to $10" keeps its
+    dollars and spaces), and an embedded newline counts against the 2-line limit."""
+    c = cc.make(title="Cost $5 to $10")
+    title = cc.by_gid(c, "title")[0]
+    drawn = title.get_window_extent(cc.renderer(c)).width
+    assert drawn == pytest.approx(c.measure("Cost $5 to $10", "title")[0], abs=0.5)
+    assert drawn > c.measure("Cost 5 to 10", "title")[0]  # the $ glyphs are drawn
+    assert " ".join(title.get_text().split()) == "Cost $5 to $10"
+    assert cc.lines_of(cc.styled(cc.make(title="A\nB"), "title", cc.TITLE_SIZES)) == 2
+    for text, part in (("A\nB\nC\nD", "title"), ("S\nT\nU", "subtitle")):
+        with pytest.raises(ValueError, match=part):
+            cc.make(**{part: text})
+
+
+@pytest.mark.parametrize("providers", [("whoscored",), ("statsbomb", "whoscored")])
+def test_canvas_carries_providers(providers: tuple[str, ...], synthetic_logo: Path) -> None:
+    """Assessment item 6: the canvas records the providers its footer credits, so a writer reads
+    the data rule from them rather than from the drawn text."""
+    c = viz.canvas("light", "square", title="T", subtitle="S", logo=synthetic_logo,
+                   footer=viz.Footer(providers))  # fmt: skip
+    assert c.providers == providers
+
+
+def test_fallback_credit_takes_a_third_line(synthetic_logo: Path) -> None:
+    """run8-ch1 fix pass: the wider fallback family (never written: the chart writers refuse it)
+    gets one more attribution line, as it gets ``TITLE_FALLBACK_PT``; Inter keeps 2 lines."""
+    fallback = dataclasses.replace(viz.THEMES["light"], family=viz.FALLBACK_FAMILY)
+    probe = cc.make(fallback)
+    model = cc.words_to_width(probe, "footer", 2.2 * TEXT_BLOCK, 2.5 * TEXT_BLOCK)
+    assert viz._wrap(probe, f"Data: StatsBomb · {model}", "footer", TEXT_BLOCK, 3)  # precondition
+    c = cc.make(fallback, provider="statsbomb", logo=synthetic_logo, model=model)
+    assert cc.lines_of(cc.by_gid(c, viz.TEXT_GID)) == 3 and viz.check(c) == []
+    inter = cc.make()
+    long_model = cc.words_to_width(inter, "footer", 2.2 * TEXT_BLOCK, 2.5 * TEXT_BLOCK)
+    with pytest.raises(ValueError, match="attribution"):
+        cc.make(provider="statsbomb", logo=synthetic_logo, model=long_model)

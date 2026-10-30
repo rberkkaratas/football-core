@@ -5,6 +5,7 @@ sentence can be matched to the artist it names."""
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 import canvas_cases as cc
@@ -12,7 +13,7 @@ import numpy as np
 import pytest
 from matplotlib.backends.backend_agg import FigureCanvasAgg
 from matplotlib.figure import Figure
-from matplotlib.patches import Rectangle
+from matplotlib.patches import Circle, Rectangle
 from matplotlib.transforms import IdentityTransform
 
 from football_core import viz
@@ -202,3 +203,61 @@ def test_check_totality(case: str) -> None:
     else:
         ax.scatter(np.zeros(0), np.zeros(0), s=50, color=ink, gid="mark-none")
         assert viz.check(c) == []
+
+
+# ---- run8-ch1 assessment: the rules no test could fail before ---------------------------------
+
+
+def _map(c: viz.Canvas) -> Any:
+    ax = c.axes((0.1, 0.1, 0.8, 0.8), gid="map")
+    ax.set_xlim(0.0, 1.0)
+    ax.set_ylim(0.0, 1.0)
+    return ax
+
+
+def test_hollow_patch_judged_by_its_edge() -> None:
+    """Assessment item 1: a ``Patch`` mark with no face (alpha 0) is judged by its edge, as a
+    collection is: an ink ring passes in both themes, a ring in the decor ``line`` colour fails."""
+    for theme in viz.THEMES:
+        t = viz.THEMES[theme]
+        assert cc.wcag(t.ink, t.background) >= 3.0 > cc.wcag(t.line, t.background)  # precondition
+        for edge, ok in ((t.ink, True), (t.line, False)):
+            c = cc.make(theme, "square")
+            _map(c).add_patch(Circle((0.5, 0.5), 0.1, fc="none", ec=edge, lw=2.0, gid="mark-ring"))
+            problems = viz.check(c)
+            assert (problems == []) is ok, (theme, edge, problems)
+            assert ok or [p.split(" at ")[0] for p in problems] == ["mark contrast: mark-ring"]
+
+
+def test_mark_judged_at_its_alpha() -> None:
+    """Assessment item 11 (M7): a ring is judged as drawn, its colour composited at its alpha
+    on the surface; the same ring opaque passes."""
+    t = viz.THEMES["light"]
+    for alpha, ratio in ((1.0, None), (0.15, cc.wcag(cc.composite(t.mark, 0.15, t.background),
+                                                      t.background))):  # fmt: skip
+        c = cc.make("light", "square")
+        _map(c).scatter([0.5], [0.5], s=400, facecolors="none", edgecolors=t.mark, alpha=alpha,
+                        linewidths=1.5, gid="mark-faint")  # fmt: skip
+        expected = [] if ratio is None else [f"mark contrast: mark-faint at {ratio:.2f}, needs 3.0"]
+        assert viz.check(c) == expected
+    assert cc.wcag(t.mark, t.background) >= 3.0  # precondition: opaque, the ring would pass
+
+
+def test_text_judged_at_its_alpha() -> None:
+    """Assessment item 11 (M6): a text's colour is composited at its alpha before the ratio."""
+    t = viz.THEMES["light"]
+    ratio = cc.wcag(cc.composite(t.ink, 0.2, t.background), t.background)
+    assert ratio < 4.5 <= cc.wcag(t.ink, t.background)  # precondition
+    c = cc.make("light", "square")
+    c.text(300.0, 500.0, "Yarrow", "caption", color=t.ink, alpha=0.2)
+    assert viz.check(c) == [f"text contrast: 'Yarrow' at {ratio:.2f}, needs 4.5"]
+
+
+def test_text_over_logo_found(synthetic_logo: Path) -> None:
+    """Assessment item 11 (M12): the logo is an overlap item: a caption reaching 5 px into it
+    (on the background, so its contrast passes) is named."""
+    c = cc.make("light", "square", provider="statsbomb", logo=synthetic_logo)
+    assert viz.check(c) == []  # precondition
+    box = cc.by_gid(c, viz.LOGO_GID)[0].get_window_extent(cc.renderer(c))
+    c.text(box.x0 + 5.0, (box.y0 + box.y1) / 2, "Zelkova", "caption", ha="right", va="center")
+    assert viz.check(c) == ["text overlap: 'Zelkova' and the logo"]

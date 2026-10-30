@@ -1,7 +1,19 @@
-"""Shot charts on the canonical frame: a half-pitch shot map and a front-on goal-mouth plot.
+"""Charts on the canonical frame: the themed chart layer (CH1) and the MS2 shot map and goal mouth.
 
-One place draws every chart, so every chart reads canonical metres from the C3 shot table
-(no provider transform here), sizes markers the same way and credits its data source
+**Theme layer (CH1), most of the public API.** :func:`canvas` builds a fixed-pixel figure
+(``SIZES``: 1080 x 1350 or 1080 x 1080 px) in a light or dark :class:`Theme` (``THEMES``, Inter
+from the vendored ``FONT_DIR``, :func:`register_fonts`): a computed statement title, a context
+subtitle, an optional stat strip (:class:`Stat`), the body a chart draws into
+(:meth:`Canvas.axes`, :meth:`Canvas.text`, :meth:`Canvas.legend`) and a footer
+(:class:`Footer`) crediting the data source, the model and ``PREPARED_BY``, with the StatsBomb
+logo on StatsBomb charts. :func:`crop_pitch`, :func:`ink_scale`, :func:`draw_shots` and
+:func:`shot_keys` draw shots on it; :func:`check` is the machine check every themed chart must
+pass before it is written (text overlap and clipping, WCAG text and mark contrast on the
+painted surface, key size); :func:`save` writes the PNG. The model repos' chart packages
+build every chart family on these pieces.
+
+**MS2 charts.** :func:`shot_map` and :func:`goal_mouth` read canonical metres from the C3 shot
+table (no provider transform here), size markers the same way and credit their data source
 automatically: StatsBomb rows add the StatsBomb logo and "Data: StatsBomb" (the open-data
 licence asks for both), WhoScored rows add "Data: Opta via WhoScored".
 
@@ -774,7 +786,9 @@ def _text_kwargs(theme: Theme, style: str) -> dict[str, Any]:
         raise ValueError(f"unknown text style {style!r}; expected one of {list(TEXT_STYLES)}")
     size, weight, token = TEXT_STYLES[style]
     colour = getattr(theme, token)
-    return {"fontsize": size, "fontweight": weight, "color": colour, "family": theme.family}
+    # parse_math off: titles carry names and CLI text, where "$5 to $10" is not mathtext
+    return {"fontsize": size, "fontweight": weight, "color": colour, "family": theme.family,
+            "parse_math": False}  # fmt: skip
 
 
 @dataclass(frozen=True, eq=False)
@@ -791,12 +805,16 @@ class Canvas:
     body : tuple of float
         The body's ``(left, bottom, width, height)`` in figure fractions; :meth:`axes` places
         rects inside it.
+    providers : tuple of str
+        The providers the footer credits (set by :func:`canvas`): a writer reads its data
+        rules (a WhoScored chart is private) from here, not from the drawn text.
     """
 
     fig: Figure
     theme: Theme
     size: str
     body: tuple[float, float, float, float]
+    providers: tuple[str, ...] = ()
 
     @property
     def px(self) -> Affine2D:
@@ -998,14 +1016,17 @@ def _measure(c: Canvas, text: str, style: str, size: float | None = None) -> tup
 def _wrap(
     c: Canvas, text: str, style: str, width: float, lines: int, size: float | None = None
 ) -> str | None:
-    """Greedy word wrap by measured width; ``None`` when it needs more than ``lines`` lines."""
+    """Greedy word wrap by measured width; ``None`` when it needs more than ``lines`` lines.
+    An embedded newline starts a new line and counts against ``lines``."""
     out: list[str] = []
-    for word in text.split(" "):
-        trial = f"{out[-1]} {word}" if out else word
-        if out and _measure(c, trial, style, size)[0] <= width:
-            out[-1] = trial
-        else:
-            out.append(word)
+    for para in text.split("\n"):
+        start = len(out)
+        for word in para.split(" "):
+            trial = f"{out[-1]} {word}" if len(out) > start else word
+            if len(out) > start and _measure(c, trial, style, size)[0] <= width:
+                out[-1] = trial
+            else:
+                out.append(word)
     if len(out) > lines or any(_measure(c, line, style, size)[0] > width for line in out):
         return None
     return "\n".join(out)
@@ -1088,7 +1109,8 @@ def canvas(
     w, h = SIZES[size]
     fig = Figure(figsize=(w / DPI, h / DPI), dpi=DPI, facecolor=t.background)
     FigureCanvasAgg(fig)
-    c = Canvas(fig, t, size, (0.0, 0.0, 1.0, 1.0))
+    providers = tuple(footer.providers)
+    c = Canvas(fig, t, size, (0.0, 0.0, 1.0, 1.0), providers)
     content = w - 2 * MARGIN_PX
     head, size_pt = None, TEXT_STYLES["title"][0]
     steps: tuple[float, ...] = (TEXT_STYLES["title"][0], TITLE_STEP_PT, TITLE_MIN_PT)
@@ -1111,7 +1133,7 @@ def canvas(
     if y - bottom < MIN_BODY_PX:
         raise ValueError(f"body is {y - bottom:.0f} px tall; at least {MIN_BODY_PX} px needed")
     body = (MARGIN_PX / w, bottom / h, content / w, (y - bottom) / h)
-    return Canvas(fig, t, size, body)
+    return Canvas(fig, t, size, body, providers)
 
 
 def _strip(c: Canvas, stats: Sequence[Stat], top: float, content: float) -> float:
@@ -1149,7 +1171,9 @@ def _footer(c: Canvas, footer: Footer, img: Image | None, content: float) -> flo
     width = content - (LOGO_PX + GAP_PX if img is not None else 0)
     credit = " · ".join(ATTRIBUTION[p] for p in schema.PROVIDERS if p in footer.providers)
     credit += f" · {footer.model}" if footer.model else ""
-    parts = [(PREPARED_BY, "footer_strong", 1, "prepared-by"), (credit, "footer", 2, TEXT_GID)]
+    wider = c.theme.family != FONT_FAMILY  # the fallback is ~16% wider: one more credit line
+    parts = [(PREPARED_BY, "footer_strong", 1, "prepared-by"),
+             (credit, "footer", 3 if wider else 2, TEXT_GID)]  # fmt: skip
     if footer.note:
         parts.append((footer.note, "caption", 2, NOTE_GID))
     y = float(BOTTOM_PX)
@@ -1324,17 +1348,16 @@ def draw_shots(
     # fmt: on
 
 
-def shot_keys(area_per_xg: float, theme: str | Theme) -> tuple[Key, ...]:
+def shot_keys(area_per_xg: float) -> tuple[Key, ...]:
     """The shot-map legend: goal (at its floor size), no goal, and one ring per ``LEGEND_XG``.
 
-    ``theme`` is validated only: the colours come from the canvas when the keys are drawn.
+    The keys carry no colour: :meth:`Canvas.legend` draws them in the canvas's theme.
 
     Examples
     --------
-    >>> [(k.label, k.size) for k in shot_keys(300.0, "light")][2:]
+    >>> [(k.label, k.size) for k in shot_keys(300.0)][2:]
     [('0.1 xG', 30.0), ('0.3 xG', 90.0), ('0.6 xG', 180.0)]
     """
-    _theme(theme)
     keys = [Key("goal", "Goal (small xG drawn at this size)", GOAL_MIN_S),
             Key("shot", "No goal", GOAL_MIN_S)]  # fmt: skip
     keys += [Key("shot", f"{v:g} xG", area_per_xg * v) for v in LEGEND_XG]
@@ -1395,10 +1418,11 @@ def _mark_colours(artist: Artist) -> list[tuple[float, ...]]:
         filled = len(faces) and float(np.max(np.asarray(faces)[:, 3])) > 0
         return [tuple(c) for c in np.unique(np.asarray(faces if filled else edges), axis=0)]
     if isinstance(artist, Line2D):
-        rgba = to_rgba(artist.get_color(), artist.get_alpha())
-    else:
-        rgba = to_rgba(artist.get_facecolor(), artist.get_alpha())  # type: ignore[attr-defined]
-    return [rgba]
+        return [to_rgba(artist.get_color(), artist.get_alpha())]
+    face = to_rgba(artist.get_facecolor(), artist.get_alpha())  # type: ignore[attr-defined]
+    if face[3] > 0:
+        return [face]
+    return [to_rgba(artist.get_edgecolor(), artist.get_alpha())]  # type: ignore[attr-defined]
 
 
 def _under(surface: npt.NDArray[np.float64], b: Box) -> tuple[float, float, float]:
@@ -1439,8 +1463,8 @@ def check(c: Canvas) -> list[str]:
     4. panel containment: a text in a ``panel-`` axes leaves that axes;
     5. text contrast: text colour (alpha composited) against the median surface under it,
        ``TEXT_CONTRAST`` (4.5, or 3.0 for large text: >= 18 pt, or >= 14 pt and weight >= 600);
-    6. mark contrast: each mark colour (face if filled, else edge) against the median surface
-       under the artist, >= ``MARK_CONTRAST``;
+    6. mark contrast: each mark colour (face if filled, else edge, for a collection or a
+       patch alike) against the median surface under the artist, >= ``MARK_CONTRAST``;
     7. key size: every ``mark-key`` marker is >= ``MIN_KEY_PX`` across.
 
     Examples

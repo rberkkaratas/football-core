@@ -65,7 +65,7 @@ def _themed_canvas(theme: str, size: str, logo: Path) -> object:
     viz.crop_pitch(ax, x, y)
     scale = viz.ink_scale(float(xg.sum()), ax)
     viz.draw_shots(ax, x, y, xg, goal, t, area_per_xg=scale)
-    c.legend(viz.shot_keys(scale, t), ax=ax)
+    c.legend(viz.shot_keys(scale), ax=ax)
     return c
 
 

@@ -198,12 +198,27 @@ def test_shot_keys_sizes() -> None:
     """Goal key at the goal floor with its caveat, No goal, one ring per ``LEGEND_XG``; the
     smallest ring at the scale's lower bound is still ``MIN_KEY_PX`` across."""
     assert viz.LEGEND_XG == (0.1, 0.3, 0.6) and viz.MIN_KEY_PX == 9
-    keys = viz.shot_keys(250.0, LIGHT)
+    keys = viz.shot_keys(250.0)
     assert keys[0] == viz.Key("goal", "Goal (small xG drawn at this size)", viz.GOAL_MIN_S)
     assert (keys[1].kind, keys[1].label) == ("shot", "No goal")
     rings = keys[2:]
     assert [k.label for k in rings] == ["0.1 xG", "0.3 xG", "0.6 xG"]
     assert [k.kind for k in rings] == ["shot"] * 3
     assert [k.size for k in rings] == [250.0 * v for v in viz.LEGEND_XG]
-    smallest = viz.shot_keys(viz.AREA_PER_XG_MIN, LIGHT)[2]
+    smallest = viz.shot_keys(viz.AREA_PER_XG_MIN)[2]
     assert math.sqrt(smallest.size) * viz.DPI / 72 >= viz.MIN_KEY_PX
+
+
+# ---- run8-ch1 assessment: documented Raises (item 12, C2 and C3) -------------------------------
+
+
+def test_crop_and_ink_refusals() -> None:
+    """``crop_pitch`` refuses ``x`` and ``y`` of different shapes; ``ink_scale`` refuses a
+    negative or non-finite xG sum (0 is allowed: ``AREA_MAX``)."""
+    ax = viz.draw_half_pitch()
+    with pytest.raises(ValueError, match="differ in shape"):
+        viz.crop_pitch(ax, np.array([95.0, 90.0]), np.array([34.0]))
+    assert viz.ink_scale(0.0, ax) == viz.AREA_MAX
+    for bad in (-0.01, math.nan, math.inf):
+        with pytest.raises(ValueError, match="xg_sum must be finite and >= 0"):
+            viz.ink_scale(bad, ax)
