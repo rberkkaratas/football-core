@@ -23,10 +23,12 @@ docs-notebooks:
 		uv run jupyter nbconvert --to markdown --output-dir docs/notebooks notebooks/*.ipynb; \
 	fi
 
-## The strict site build, then fail on any Sphinx role left raw in the built pages
+## The strict site build, then fail on any Sphinx role left raw in the built pages or a stale
+## generated theme (the Pages workflow deploys what this target checks)
 docs: docs-notebooks
 	uv run zensical build --strict
 	uv run python -m football_docs.pages site site
+	uv run python -m football_docs.theme docs --check
 
 ## Regenerate the committed site theme (docs/stylesheets/theme.css, docs/assets/logo.svg) from viz
 docs-theme:

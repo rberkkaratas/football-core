@@ -16,10 +16,11 @@ from pathlib import Path
 
 import hypothesis.strategies as st
 import pytest
+import yaml
 from hypothesis import given, settings
 
 import football_docs
-from football_docs import meta, pages, roles
+from football_docs import meta, pages
 
 REPO = Path(__file__).resolve().parents[1]
 D = "football-demo-models"
@@ -243,7 +244,7 @@ def test_core_repo_meta() -> None:
     for name in ("LICENSE", "mkdocs.yml", "pyproject.toml"):
         raw = (REPO / name).read_bytes()
         assert b"R. Berk Karata\xc5\x9f" in raw, name
-        assert b"Karatas" not in raw and b"R.Berk" not in raw, name
+        assert b"Berk Karatas" not in raw and b"R.Berk" not in raw, name
 
 
 # --- 2. author ------------------------------------------------------------------------------
@@ -257,16 +258,22 @@ AUTHOR_FILES = ("LICENSE", "mkdocs.yml", "pyproject.toml")
     [
         (
             "R.Berk Karatas",
-            ["no 'R. Berk Karataş'", "old spelling 'R.Berk'", "old spelling 'Karatas'"],
+            [
+                "no 'R. Berk Karataş'",
+                "old spelling 'R.Berk Karatas'",
+                "old spelling 'Berk Karatas'",
+            ],
         ),
-        ("R. Berk Karatas", ["no 'R. Berk Karataş'", "old spelling 'Karatas'"]),
+        ("R. Berk Karatas", ["no 'R. Berk Karataş'", "old spelling 'Berk Karatas'"]),
         # NFD: s + combining cedilla U+0327 looks right but holds the ASCII 'Karatas'
-        ("R. Berk Karataş", ["no 'R. Berk Karataş'", "old spelling 'Karatas'"]),
+        ("R. Berk Karataş", ["no 'R. Berk Karataş'", "old spelling 'Berk Karatas'"]),
         # s with comma below (U+0219), the Romanian letter: not the author, not an old spelling
         ("R. Berk Karataș", ["no 'R. Berk Karataş'"]),
+        # the bare surname in a URL or handle is not an old spelling of the name
+        ("R. Berk Karataş (https://github.com/Karatas/x)", []),
         (None, ["missing"]),
     ],
-    ids=["old", "ascii", "nfd", "comma-below", "missing"],
+    ids=["old", "ascii", "nfd", "comma-below", "surname-in-url", "missing"],
 )
 def test_author(consumer: Path, rel: str, variant: str | None, expected: list[str]) -> None:
     if variant is None:
@@ -280,7 +287,9 @@ def test_author(consumer: Path, rel: str, variant: str | None, expected: list[st
 @settings(deadline=None, max_examples=60)
 @given(
     parts=st.lists(
-        st.sampled_from([AUTHOR, "R.Berk", "Karatas", "Karata", "R. Berk", "ş", "s", " ", "x"]),
+        st.sampled_from(
+            [AUTHOR, "R.Berk", "Berk", "Karatas", "Karata", "R. Berk", "ş", "s", " ", "x"]
+        ),
         max_size=6,
     )
 )
@@ -288,7 +297,9 @@ def test_author_rule_property(parts: list[str]) -> None:
     """Any LICENSE text: one problem if the author is absent, one per old spelling present."""
     text = "".join(parts)
     expected = [] if AUTHOR in text else ["LICENSE: no 'R. Berk Karataş'"]
-    expected += [f"LICENSE: old spelling '{s}'" for s in ("R.Berk", "Karatas") if s in text]
+    expected += [
+        f"LICENSE: old spelling '{s}'" for s in ("R.Berk Karatas", "Berk Karatas") if s in text
+    ]
     with tempfile.TemporaryDirectory() as tmp:
         root = write_consumer(Path(tmp))
         (root / "LICENSE").write_text(text, encoding="utf-8")
@@ -494,11 +505,9 @@ LINT_HEAD = "    runs-on: ubuntu-24.04\n" + DEFAULTS + "    steps:\n" + OWN + ST
 def test_two_installing_jobs(consumer: Path, edits: list[Edit], expected: list[str]) -> None:
     edit(consumer, C, SYNC_THEN_CHECK, SYNC_THEN_CHECK + LINT_JOB)
     apply(consumer, edits)
-    doc = meta._load(consumer, C, [])
-    assert doc is not None and [j for j, *_ in meta._jobs(doc, installing=True)] == [
-        "check",
-        "lint",
-    ]
+    doc = yaml.safe_load((consumer / C).read_text(encoding="utf-8"))
+    assert list(doc["jobs"]) == ["check", "lint"]  # precondition: two installing jobs
+    assert all(SYNC in str(job["steps"]) for job in doc["jobs"].values())
     assert meta.problems(consumer, pages=True) == expected
 
 
@@ -766,7 +775,7 @@ def test_meta_docs_wiring() -> None:
     assert "``meta`` imports ``yaml``" in package
     module = meta.__doc__ or ""
     assert module.strip()
-    assert not any(f":{role}:`" in module for role in roles.ROLE_NAMES)
+    assert not any(f":{role}:`" in module for role in pages.ROLE_NAMES)
     assert pages.docstring_codes(meta.__file__) == []
     examples = [ex.source for test in doctest.DocTestFinder().find(meta) for ex in test.examples]
     assert any('problems(Path("no-such-repo"), pages=False)' in src for src in examples)
@@ -843,8 +852,8 @@ def test_r7_null_repository_is_absent(consumer: Path) -> None:
     edit_first(
         consumer, C, f"          path: {D}\n", f"          repository:\n          path: {D}\n"
     )
-    doc = meta._load(consumer, C, [])
-    assert doc is not None and "repository" in doc["jobs"]["check"]["steps"][0]["with"]
+    doc = yaml.safe_load((consumer / C).read_text(encoding="utf-8"))
+    assert "repository" in doc["jobs"]["check"]["steps"][0]["with"]
     assert meta.problems(consumer, pages=True) == []
 
 

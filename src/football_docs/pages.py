@@ -1,8 +1,9 @@
 """What a public docs page must pass, and the home page's results block.
 
 A public page carries no internal process code (review rulings, milestone and package ids,
-run names): :data:`CODES` is the one pattern list both sites' tests and the maintenance list
-use, :func:`find_codes` scans a page and :func:`docstring_codes` the docstrings of a module.
+run names, spec sections): :data:`CODES` is the one pattern list both sites' tests and the
+maintenance list use, :func:`find_codes` scans a page and :func:`docstring_codes` the
+docstrings of a module.
 Generated blocks (between ``<!-- name:start -->`` and ``<!-- name:end -->`` markers) are
 skipped: they are card output, checked byte for byte elsewhere.
 
@@ -13,7 +14,9 @@ generated card blocks, choosing rows and columns by name (``[[tool.football_docs
 ``pyproject.toml``, read by :func:`picks`).
 
 **The built site.** :func:`raw_roles` counts Sphinx role text left in the built HTML and search
-index, so ``make docs`` fails when a docstring role was not rendered.
+index, so ``make docs`` fails when a docstring role was not rendered. :data:`ROLE_NAMES`, the
+role names it counts, lives here (and :mod:`football_docs.roles` imports it) so that this module
+stays standard library only.
 
 ``python -m football_docs.pages site <dir>`` and ``python -m football_docs.pages results <page>
 [--write]`` run the site check and the results block from the command line. Standard library
@@ -32,17 +35,17 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import Final
 
-from football_docs.roles import ROLE_NAMES
-
+ROLE_NAMES: Final = ("func", "class", "meth", "data", "attr", "mod", "obj", "exc", "const")
 CODES: Final[Mapping[str, str]] = MappingProxyType(
     {
         "ruling": r"\bPM\b",
         "milestone": r"\b(?:MS|PR|CH|DR)\d+\b",
         "component": r"\b[MPCS]\d+(?:\.\d+)+\b|\b[CM]\d+\b",
-        "review": r"\b[ERAXDFGTS]\d{1,2}\b",
+        "review": r"\b[ERAXDFGTS]\d{1,2}\b|\bRI\d+\b",
         "run": r"\brun\d+\b",
         "package": r"\b[Pp]ackage \d+\b",
         "rule": r"\b[Rr]ule \d+\b",
+        "section": r"§\s?\d",
     }
 )
 STALE: Final[tuple[str, ...]] = (
@@ -50,7 +53,7 @@ STALE: Final[tuple[str, ...]] = (
     "the charts are git-ignored",
 )
 GENERATED: Final[re.Pattern[str]] = re.compile(
-    r"<!-- (?P<name>[a-z0-9-]+(?::summary)?):start -->.*?<!-- (?P=name):end -->", re.S
+    r"<!-- (?P<name>[a-z0-9-]+(?::summary)?):start -->(?P<inner>.*?)<!-- (?P=name):end -->", re.S
 )
 NUMBER: Final[str] = r"\d[\d,]*(?:\.\d+)?"
 RESULTS: Final[str] = "results"
@@ -83,6 +86,19 @@ def strip_generated(text: str) -> str:
         return start + "\n" * m.group(0).count("\n") + end
 
     return GENERATED.sub(empty, text)
+
+
+def generated_blocks(text: str) -> list[tuple[str, str]]:
+    """``(name, inner text)`` of every generated block of ``text``, in text order, the marker
+    lines excluded: what :func:`strip_generated` empties, so a page's test can pin which blocks
+    it exempts.
+
+    Examples
+    --------
+    >>> generated_blocks("a\\n<!-- m:summary:start -->\\nb\\n<!-- m:summary:end -->\\n")
+    [('m:summary', '\\nb\\n')]
+    """
+    return [(m["name"], m["inner"]) for m in GENERATED.finditer(text)]
 
 
 def find_codes(text: str) -> list[Hit]:
@@ -197,8 +213,8 @@ def unsourced_numbers(text: str, *sources: str) -> list[str]:
 
 def raw_roles(site: str | Path) -> list[tuple[str, int]]:
     """``(file, count)`` of Sphinx role text (the func, class, meth and data roles, and the
-    other :data:`~football_docs.roles.ROLE_NAMES`) per built ``.html`` / ``.json`` file under
-    ``site``, relative paths, files without any omitted.
+    other :data:`ROLE_NAMES`) per built ``.html`` / ``.json`` file under ``site``, relative
+    paths, files without any omitted.
 
     Raises
     ------

@@ -13,9 +13,11 @@ ax.figure.savefig("outputs/shot-map.png", dpi=200, bbox_inches="tight")
 ```
 
 !!! note "StatsBomb saves"
-    The goal-mouth point is the provider's goal-plane point. For a StatsBomb save it is where
-    the keeper stopped the ball, not a projection onto the goal line, so saves can sit outside
-    the frame. Projecting them onto the line is an xGOT follow-up.
+    The goal-mouth point is the provider's goal-plane point. For a StatsBomb stop point (a save,
+    or any shot the keeper stopped) the loader has already projected `goal_y` to the goal line
+    from the shot location and snapped it to the 0.1 yd lattice (see
+    [Conventions](../conventions.md#goal-mouth)); `goal_z` is the height where the ball was
+    stopped, so a save can sit above or beside the frame. Do not project the points again.
 
 ## Theme layer
 

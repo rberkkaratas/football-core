@@ -29,7 +29,8 @@ from typing import Any, Final
 
 import griffe
 
-ROLE_NAMES: Final = ("func", "class", "meth", "data", "attr", "mod", "obj", "exc", "const")
+from football_docs.pages import ROLE_NAMES
+
 ROLE: Final[re.Pattern[str]] = re.compile(
     ":(?:py:)?(?:" + "|".join(ROLE_NAMES) + "):`(?P<tilde>~)?(?P<target>[^`]+)`"
 )
@@ -119,7 +120,7 @@ def resolver(obj: griffe.Object, external: Sequence[str] = ()) -> Resolver:
 
     A target under one of the ``external`` package prefixes always gets a link (the inventory
     of another site validates it); anything that does not resolve to a rendered object gives
-    ``None``.
+    ``None``, including a path through an import alias of a package that is not loaded.
 
     Examples
     --------
@@ -139,8 +140,8 @@ def resolver(obj: griffe.Object, external: Sequence[str] = ()) -> Resolver:
         for path in _candidates(obj, target):
             try:
                 found = collection[path]
-            except (KeyError, ValueError):
-                continue
+            except (KeyError, ValueError, griffe.AliasResolutionError, griffe.CyclicAliasError):
+                continue  # an alias of an unloaded package (``import polars as pl``) is a miss
             return _rendered(found)
         return None
 

@@ -13,7 +13,7 @@ only counts and metrics from it are published.
   points per provider ([Conventions](conventions.md)).
 - **Every StatsBomb shot loads.** All 101,614 shots of 3,961 matches at the pinned open-data
   commit load with zero schema violations, plus 1,305,559 freeze-frame rows, and goals reconcile
-  with the recorded score in every match ([Roadmap](roadmap.md)).
+  with the recorded score in every match (shoot-outs excluded; see the [Roadmap](roadmap.md)).
 - **The private archive loads the same way.** 3,802 matches and 98,261 shots with zero schema
   violations; goals reconcile with the metadata score in all 2,186 scored matches.
 - **One goal frame.** Both providers' goal mouths map through one landmark rule: 11,309 of

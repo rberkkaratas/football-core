@@ -15,6 +15,13 @@ theme:
     - navigation.sections
     - content.code.copy
   palette:
+    # automatic first: a first visit follows the device and is not stored as light or dark
+    - media: "(prefers-color-scheme)"
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/brightness-auto
+        name: Switch to light mode
     - media: "(prefers-color-scheme: light)"
       scheme: default
       primary: custom
@@ -28,7 +35,7 @@ theme:
       accent: custom
       toggle:
         icon: material/brightness-4
-        name: Switch to light mode
+        name: Switch to system preference
 
 markdown_extensions:
   - admonition

@@ -36,7 +36,8 @@ from typing import Any, Final
 import yaml
 
 AUTHOR: Final[str] = "R. Berk Karataş"
-OLD_SPELLINGS: Final[tuple[str, ...]] = ("R.Berk", "Karatas")
+# old name forms, not the bare surname: a URL or handle may carry "Karatas"
+OLD_SPELLINGS: Final[tuple[str, ...]] = ("R.Berk Karatas", "Berk Karatas")
 AUTHOR_FILES: Final[tuple[str, ...]] = ("LICENSE", "mkdocs.yml", "pyproject.toml")
 CORE: Final[str] = "football-core"
 CHECK: Final[str] = ".github/workflows/check.yml"

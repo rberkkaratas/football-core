@@ -28,9 +28,10 @@ charts embed it with the attribution, as the open-data licence asks. A chart of 
 rows without the logo file raises before anything is drawn, rather than producing an
 uncredited chart.
 
-**Goal-mouth points** are the provider's goal-plane point. For a StatsBomb save it is where
-the keeper stopped the ball, not a projection onto the goal line, so a save can sit outside
-the frame.
+**Goal-mouth points** are the provider's goal-plane point. For a StatsBomb stop point (a save, or
+any shot the keeper stopped) the loader has already projected ``goal_y`` to the goal line from
+the shot location and snapped it to the 0.1 yd lattice (see the Conventions page);
+``goal_z`` is the height where the ball was stopped, so a save can sit above or beside the frame.
 
 Needs the ``viz`` extra: ``uv add 'football-core[viz]'``.
 """
@@ -583,7 +584,7 @@ def goal_mouth(
     return ax
 
 
-# --- Theme layer: fonts, tokens, layout (CH1) -------------------------------------------------
+# --- Theme layer: fonts, tokens, layout -------------------------------------------------------
 
 FONT_DIR: Final = Path(__file__).parent / "fonts"
 FONT_FAMILY: Final[str] = "Inter"
@@ -730,8 +731,8 @@ KEY_SPACING_PX: Final[int] = 16  # between keys
 MAX_STATS: Final[int] = 5
 PREPARED_BY: Final[str] = "Prepared by R. Berk Karataş"
 CROP_PAD: Final[float] = 2.0  # m around the shots and the box
-CROP_MAX_DEPTH: Final[float] = 35.0  # m from the goal line (PM E4)
-INK_SHARE: Final[float] = 0.12  # share of the pitch area the markers cover (p6, chosen on dev)
+CROP_MAX_DEPTH: Final[float] = 35.0  # m from the goal line; deeper shots are counted, not drawn
+INK_SHARE: Final[float] = 0.12  # share of the pitch area the markers cover (chosen on dev shots)
 AREA_MAX: Final[float] = 900.0  # pt² of s per xG
 AREA_PER_XG_MIN: Final[float] = 190.0  # keeps the 0.1 xG key >= MIN_KEY_PX across
 GOAL_MIN_S: Final[float] = 36.0  # pt²: a goal is >= 6 pt across, whatever its xG
