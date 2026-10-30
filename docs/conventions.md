@@ -118,7 +118,7 @@ stop point) and `--check` fails on a `goal_y` off the lattice (`goalmouth.lattic
 `goal_z` keeps the recorded height at the stop point (no trajectory model). Opta's `goalMouthY` / `goalMouthZ` is already the goal-plane point, so
 WhoScored shots are not projected.
 
-**Opta direction and crossbar, confirmed (P2.1).** The crossbar at 38: saves reach at most 38.0
+**Opta direction and crossbar, confirmed.** The crossbar at 38: saves reach at most 38.0
 and bar hits start above it. The direction of `goalMouthY`: every shot with a left zone
 qualifier lies on the shooter's left (raw > 50, goal-frame y < 0) and every shot with a right
 zone qualifier on the shooter's right, with 0 exceptions (`goalmouth.zone_sides`,

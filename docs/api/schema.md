@@ -1,7 +1,7 @@
 # schema
 
 The canonical **shot** table, the long-format **freeze-frame** table and the **matches**
-table that every loader (StatsBomb in C4, WhoScored / Opta in C5) writes, with polars dtypes, pandera models and a
+table that every loader (StatsBomb open data and the WhoScored / Opta archive) writes, with polars dtypes, pandera models and a
 leakage role per column. Coordinates are canonical metres from [`pitch`](pitch.md): the
 shooting team attacks towards `x = 105`, `y = 0` is the shooter's right touchline.
 
@@ -17,8 +17,8 @@ features = schema.column_names("shots", roles="pre_shot")  # the xG allow-list
 | Role | Meaning | May be a model feature? |
 |---|---|---|
 | `identity` | Keys and grouping (who, which match, when) | Never; used for joins and CV groups |
-| `pre_shot` | Fully determined at the instant the ball is struck: **both the value and whether it is null** | xG (M1) and everything after |
-| `post_shot` | Ball flight after the strike: `goal_y`, `goal_z`, `deflected` | xGOT / PSxG (P2) only, never xG |
+| `pre_shot` | Fully determined at the instant the ball is struck: **both the value and whether it is null** | xG and everything after |
+| `post_shot` | Ball flight after the strike: `goal_y`, `goal_z`, `deflected` | xGOT / PSxG only, never xG |
 | `outcome` | Labels, population definitions, and where the ball was stopped (`end_x`, `end_y`, `end_z`) | Never as a feature of the same shot |
 | `restricted` | Pre-shot in time, but an annotator judgement that leaks the outcome (`big_chance`) | Labelled ablation only |
 | `lineage` | Provenance, provider model outputs, raw payloads, version | Never |
@@ -112,8 +112,8 @@ provider-prefixed string (`sb:…` / `ws:…`) whose prefix matches `provider`.
 | 38 | `follows_dribble` | Boolean | yes |  | pre_shot | Tri-state: shot follows a dribble (StatsBomb only). |
 | 39 | `open_goal` | Boolean | yes |  | pre_shot | Tri-state: open goal. |
 | 40 | `one_on_one` | Boolean | yes |  | pre_shot | Tri-state: one on one. |
-| 41 | `prev_action` | Enum(PREV_ACTIONS) | yes | pass, take_on, regain, shot, other, opp_clearance, opp_block, opp_keeper, opp_other | pre_shot | The last play event before the shot in its period (whoscored.PLAY_SKIP types skipped), by the shooting team (pass ... other) or the opponent (opp_*). opp_block: an outfield block (Opta Save with q94); opp_keeper: a keeper's save, punch, claim, smother or pick-up. Stoppages are skipped, so on a set piece it is the play before the stoppage. null: not derived (StatsBomb) or own goal. Keeper-derived column (xG only, MS6 E5). |
-| 42 | `rebound` | Boolean | yes |  | pre_shot | The shooting team's previous shot in the period is at most 3 s earlier on the clock; null: not derived (StatsBomb) or own goal. Keeper-derived (xG only, MS6 E5). |
+| 41 | `prev_action` | Enum(PREV_ACTIONS) | yes | pass, take_on, regain, shot, other, opp_clearance, opp_block, opp_keeper, opp_other | pre_shot | The last play event before the shot in its period (whoscored.PLAY_SKIP types skipped), by the shooting team (pass ... other) or the opponent (opp_*). opp_block: an outfield block (Opta Save with q94); opp_keeper: a keeper's save, punch, claim, smother or pick-up. Stoppages are skipped, so on a set piece it is the play before the stoppage. null: not derived (StatsBomb) or own goal. Keeper-derived column: an xG feature only, refused in the xGOT input chain. |
+| 42 | `rebound` | Boolean | yes |  | pre_shot | The shooting team's previous shot in the period is at most 3 s earlier on the clock; null: not derived (StatsBomb) or own goal. Keeper-derived: an xG feature only, refused in the xGOT input chain. |
 | 43 | `big_chance` | Boolean | yes |  | restricted | Tri-state: Opta big chance; null for StatsBomb. |
 | 44 | `deflected` | Boolean | yes |  | post_shot | Tri-state: shot deflected. |
 | 45 | `provider_xg` | Float64 | yes | [0, 1] | lineage | Provider xG, a benchmark only. |
@@ -153,7 +153,7 @@ frame.
 
 ## Matches table
 
-One row per match, provider-neutral, so StatsBomb (C4) and WhoScored (C5) fill the same
+One row per match, provider-neutral, so StatsBomb and WhoScored fill the same
 table. Nothing in it is ever filled with a default. `gender` is the one `pre_shot` column:
 the shot models join it onto the shots by `match_id`
 (`column_names("matches", roles="pre_shot")`).

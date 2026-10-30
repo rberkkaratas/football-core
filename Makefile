@@ -1,4 +1,4 @@
-.PHONY: check lint format typecheck test docs docs-notebooks docs-serve
+.PHONY: check lint format typecheck test docs docs-notebooks docs-serve docs-theme
 
 ## Run every quality gate (CI runs the same target)
 check: lint typecheck test docs
@@ -23,8 +23,14 @@ docs-notebooks:
 		uv run jupyter nbconvert --to markdown --output-dir docs/notebooks notebooks/*.ipynb; \
 	fi
 
+## The strict site build, then fail on any Sphinx role left raw in the built pages
 docs: docs-notebooks
 	uv run zensical build --strict
+	uv run python -m football_docs.pages site site
+
+## Regenerate the committed site theme (docs/stylesheets/theme.css, docs/assets/logo.svg) from viz
+docs-theme:
+	uv run python -m football_docs.theme docs
 
 docs-serve: docs-notebooks
 	uv run zensical serve

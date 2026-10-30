@@ -1,27 +1,39 @@
 site_name: football-core
 site_description: "Shared data loading, pitch coordinates and plotting for the football-*-models repos"
-site_author: R.Berk Karatas
+site_author: R. Berk Karataş
+copyright: © 2026 R. Berk Karataş · MIT licence
 docs_dir: docs
 
 theme:
   name: material
+  logo: assets/logo.svg
+  favicon: assets/logo.svg
+  font:
+    text: Inter
+    code: JetBrains Mono
   features:
     - navigation.sections
     - content.code.copy
   palette:
     - media: "(prefers-color-scheme: light)"
       scheme: default
+      primary: custom
+      accent: custom
       toggle:
         icon: material/brightness-7
         name: Switch to dark mode
     - media: "(prefers-color-scheme: dark)"
       scheme: slate
+      primary: custom
+      accent: custom
       toggle:
         icon: material/brightness-4
         name: Switch to light mode
 
 markdown_extensions:
   - admonition
+  - attr_list
+  - md_in_html
   - tables
   - toc:
       permalink: true
@@ -37,7 +49,8 @@ plugins:
           paths: [src]
           options:
             docstring_style: numpy
-            show_source: true
+            show_source: false
+            extensions: [football_docs.roles]
             show_root_heading: true
 
 extra_javascript:
@@ -46,6 +59,7 @@ extra_javascript:
   - https://unpkg.com/katex@0.16.11/dist/contrib/auto-render.min.js
 
 extra_css:
+  - stylesheets/theme.css
   - https://unpkg.com/katex@0.16.11/dist/katex.min.css
 
 nav:
@@ -53,6 +67,7 @@ nav:
   - Conventions: conventions.md
   - Data policy: data-policy.md
   - Modules: modules.md
+  - Roadmap: roadmap.md
   - API reference:
       - pitch: api/pitch.md
       - goalmouth: api/goalmouth.md
@@ -62,4 +77,7 @@ nav:
       - io.whoscored: api/whoscored.md
       - viz: api/viz.md
       - cli: api/cli.md
-  - Roadmap: roadmap.md
+      - docs.roles: api/docs_roles.md
+      - docs.pages: api/docs_pages.md
+      - docs.theme: api/docs_theme.md
+      - docs.meta: api/docs_meta.md

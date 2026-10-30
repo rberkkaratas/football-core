@@ -16,24 +16,30 @@ src/football_core/
 │   │                    #   lattice, facing keeper, keeper names from the lineups
 │   ├── whoscored.py     # private WhoScored / Opta CSV archive → shots and matches (no frames);
 │   │                    #   facing keeper from the lineup events; previous play event and
-│   │                    #   rebound flag of each shot (PR1)
+│   │                    #   rebound flag of each shot
 │   └── snapshot.py      # parquet + manifest writer and verifier, builder registry
-├── viz.py               # shot map, front-on goal-mouth plot, attribution; CH1: light and dark
+├── viz.py               # shot map, front-on goal-mouth plot, attribution; light and dark
 │                        #   themes, the chart canvas (title, subtitle, stat strip, body, footer),
 │                        #   pitch crop, shot marks, machine checks (overlap, clipping, contrast)
-└── fonts/               # CH1: Inter 4.0 static TTFs and the SIL OFL licence (package data)
+└── fonts/               # Inter 4.0 static TTFs and the SIL OFL licence (package data)
+src/football_docs/       # docs-site tooling for every football-* site (outside football_core)
+├── roles.py             # griffe extension: Sphinx roles → links or plain code at build time
+├── pages.py             # internal-code and number checks, results block, built-site role check
+├── theme.py             # site CSS and logo generated from viz.THEMES (`make docs-theme`)
+└── meta.py              # repository metadata check: author, CI and Pages workflows
 ```
 
-| Module | Status | Milestone |
+| Module | Status | Milestones |
 |---|---|---|
-| `pitch` | ✅ Done (goal frame, goal-mouth landmarks, projection, inverse goal-mouth map) | C2, P2.1, MS6 |
-| `goalmouth` | ✅ Done (MS6: `match_grids`, `grid_census`, lattice check) | P2.1, MS6 |
-| `schema` | ✅ Done (1.1: matches table; 1.2: `gk_id`; 1.3: `prev_action`, `rebound`) | C3, C3.1, P2.1, PR1 |
-| `io.snapshot` | ✅ Done | C6 |
-| `cli` | ✅ Done (`fc goalmouth`; MS6: grid census and lattice line) | C6, P2.1, MS6 |
-| `io.statsbomb` | ✅ Done (goal-line projection, `gk_id`; MS6: lattice snap, `player_names`) | C4, P2.1, MS6 |
-| `io.whoscored` | ✅ Done (builder `whoscored`; manifest git-ignored; `gk_id`; PR1: `previous_play`, `shot_context`) | C5, P2.1, PR1 |
-| `viz` | ✅ Done (`viz` extra: matplotlib; CH1: theme layer, Inter, canvas, checks) | C7, CH1 |
+| `pitch` | ✅ Done (goal frame, goal-mouth landmarks, projection, inverse goal-mouth map) | before the milestones; xGOT; goalkeepers |
+| `goalmouth` | ✅ Done (`match_grids`, `grid_census`, lattice check) | xGOT; goalkeepers |
+| `schema` | ✅ Done (1.1: matches table; 1.2: `gk_id`; 1.3: `prev_action`, `rebound`) | data foundation; xG model; xGOT; polish round 1 |
+| `io.snapshot` | ✅ Done | data foundation |
+| `cli` | ✅ Done (`fc goalmouth`, grid census and lattice line) | data foundation; xGOT; goalkeepers |
+| `io.statsbomb` | ✅ Done (goal-line projection, `gk_id`, lattice snap, `player_names`) | StatsBomb xG baseline; xGOT; goalkeepers |
+| `io.whoscored` | ✅ Done (builder `whoscored`; manifest git-ignored; `gk_id`; `previous_play`, `shot_context`) | WhoScored xG v1; xGOT; polish round 1 |
+| `viz` | ✅ Done (`viz` extra: matplotlib; theme layer, Inter, canvas, checks) | StatsBomb xG baseline; chart round 1 |
+| `football_docs.roles`, `.pages`, `.theme`, `.meta` | ✅ Done (docs-site tooling: roles rendered at build time, page checks and results block, site theme from `viz.THEMES`, repository metadata check: author, CI and Pages wiring) | docs round 1 |
 
 Every module ships with unit tests before a model repo depends on it. Reference libraries
 (mplsoccer, kloppy, socceraction) are used as **test oracles only**, never as runtime

@@ -1,6 +1,6 @@
-"""Charts on the canonical frame: the themed chart layer (CH1) and the MS2 shot map and goal mouth.
+"""Charts on the canonical frame: the themed chart layer and the original shot map and goal mouth.
 
-**Theme layer (CH1), most of the public API.** :func:`canvas` builds a fixed-pixel figure
+**Theme layer, most of the public API.** :func:`canvas` builds a fixed-pixel figure
 (``SIZES``: 1080 x 1350 or 1080 x 1080 px) in a light or dark :class:`Theme` (``THEMES``, Inter
 from the vendored ``FONT_DIR``, :func:`register_fonts`): a computed statement title, a context
 subtitle, an optional stat strip (:class:`Stat`), the body a chart draws into
@@ -12,7 +12,7 @@ pass before it is written (text overlap and clipping, WCAG text and mark contras
 painted surface, key size); :func:`save` writes the PNG. The model repos' chart packages
 build every chart family on these pieces.
 
-**MS2 charts.** :func:`shot_map` and :func:`goal_mouth` read canonical metres from the C3 shot
+**Original charts.** :func:`shot_map` and :func:`goal_mouth` read canonical metres from the shot
 table (no provider transform here), size markers the same way and credit their data source
 automatically: StatsBomb rows add the StatsBomb logo and "Data: StatsBomb" (the open-data
 licence asks for both), WhoScored rows add "Data: Opta via WhoScored".
@@ -22,9 +22,11 @@ at the top and the attacker's right touchline (``y = 0``) on the right. The goal
 7.32 x 2.44 m frame seen from the pitch, right post (``y = 30.34``) on the right. Marker area
 is ``area_per_xg * xG`` exactly, goals filled, non-goals hollow and drawn on top.
 
-**Licence.** The StatsBomb logo is never committed: ``statsbomb.fetch_logo()`` downloads it,
-pinned and verified, into the git-ignored data cache. A chart of StatsBomb rows without the
-logo file raises before anything is drawn, rather than producing an uncredited chart.
+**Licence.** The StatsBomb logo file is never committed: ``statsbomb.fetch_logo()`` downloads
+it, pinned and verified, into the git-ignored data cache. The published StatsBomb example
+charts embed it with the attribution, as the open-data licence asks. A chart of StatsBomb
+rows without the logo file raises before anything is drawn, rather than producing an
+uncredited chart.
 
 **Goal-mouth points** are the provider's goal-plane point. For a StatsBomb save it is where
 the keeper stopped the ball, not a projection onto the goal line, so a save can sit outside
@@ -459,8 +461,8 @@ def shot_map(
     Parameters
     ----------
     shots : polars.DataFrame
-        C3 shot columns ``provider``, ``is_goal``, ``is_own_goal``, ``period``, ``x``, ``y``
-        (canonical metres, no nulls) with their C3 dtypes, plus the ``xg`` column. Other
+        Shot-table columns ``provider``, ``is_goal``, ``is_own_goal``, ``period``, ``x``, ``y``
+        (canonical metres, no nulls) with their schema dtypes, plus the ``xg`` column. Other
         columns are not read.
     xg : str
         A ``Float64`` column of P(goal) in [0, 1], e.g. ``"provider_xg"`` or a model's output;
@@ -608,7 +610,8 @@ def register_fonts(directory: StrPath = FONT_DIR) -> str:
     resolve to its own file (or a byte-identical copy already registered): a missing file, an
     unreadable one, or a file of another font under an Inter name would otherwise draw in a
     silently substituted face. ``rcParams`` is never touched, so charts that do not ask for the
-    family (the MS2 charts, the keeper SVG) keep matplotlib's default font, byte for byte.
+    family (the original shot map and goal mouth, the keeper SVG) keep matplotlib's default
+    font, byte for byte.
 
     Parameters
     ----------

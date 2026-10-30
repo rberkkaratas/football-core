@@ -5,7 +5,7 @@ description = "Shared data loading, pitch coordinates and plotting for the footb
 readme = "README.md"
 license = "MIT"
 authors = [
-    { name = "R.Berk Karatas", email = "rberkk@protonmail.com" }
+    { name = "R. Berk Karataş", email = "rberkk@protonmail.com" }
 ]
 requires-python = ">=3.12"
 dependencies = [
@@ -24,6 +24,10 @@ football-core = "football_core.cli:main"  # alias: zsh and bash have a builtin `
 [build-system]
 requires = ["uv_build>=0.11.16,<0.12.0"]
 build-backend = "uv_build"
+
+[tool.uv.build-backend]
+# football_docs: docs-build tooling for every football-* site, outside the model repos' cache hash
+module-name = ["football_core", "football_docs"]
 
 [dependency-groups]
 dev = [
@@ -51,6 +55,10 @@ select = ["E", "F", "I", "B", "UP", "SIM"]
 [tool.mypy]
 python_version = "3.12"
 strict = true
+
+[[tool.mypy.overrides]]
+module = ["yaml"]
+ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests", "src"]

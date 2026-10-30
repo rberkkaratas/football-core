@@ -117,7 +117,7 @@ a loader reading the epoch with the wrong unit.
 | `data_dir` | Always `"../data/snapshots/<name>"`, relative to the manifest |
 | `data_digest` | sha256 over the file hashes: the single id of the snapshot's data, for model cards |
 | `source` | `git` (a commit SHA), `files` (a digest of the input files, optionally listed) or `sql` (a hash of the query text plus `content_sha256` of the fetched rows) |
-| `tables[]` | Sorted by name: rows, matches, the C3 schema the table passed, sort keys, columns with dtypes, and `groups` |
+| `tables[]` | Sorted by name: rows, matches, the schema version the table passed, sort keys, columns with dtypes, and `groups` |
 | `tables[].matches` | Distinct non-null `match_id` values **present in this table** (on `shots`: matches with at least one shot), not the matches loaded |
 | `tables[].groups` | Per (competition, season), when both keys are String, Enum, Categorical or integer: rows, matches and the first / last `match_date` (null unless `match_date` is a `Date`). Sorted by the keys as strings, nulls last. Aggregates only |
 | `files[]` | Sorted by path: sha256 and size of each data file |
@@ -180,7 +180,7 @@ builder but never written to the manifest; secrets belong in environment variabl
 
 A builder is `Callable[[BuildRequest], BuildResult]`. The built-in `parquet` builder makes one
 table per input parquet file; the built-in `statsbomb` builder
-(`football_core.io.statsbomb:build_snapshot`, C4) syncs and loads the open-data cache. A
+(`football_core.io.statsbomb:build_snapshot`) syncs and loads the open-data cache. A
 provider module adds one line to `BUILTIN_BUILDERS`; `register_builder` adds one at runtime.
 A sketch of the StatsBomb builder (the real one also checks its params and logs skipped 360
 files):

@@ -10,7 +10,17 @@ Shared foundation for the football model repositories:
 | [football-possession-value](../football-possession-value) | xT, VAEP, OBV / PV-style action valuation |
 | [football-tracking-models](../football-tracking-models) | Pitch control, EPV, OBSO, pressing intensity |
 
-> **Status:** `pitch` (C2), `schema` (C3; 1.1 adds the canonical matches table, C3.1; 1.2 adds the facing keeper `gk_id`, P2.1), `io.snapshot` with the `fc` CLI (C6), the StatsBomb open-data loader `io.statsbomb` (C4), the private WhoScored / Opta archive loader `io.whoscored` (C5, git-ignored snapshot and manifest), `viz` (C7, shot map and goal-mouth plot; CH1, the light and dark theme layer with vendored Inter, the chart canvas and its machine checks) and the goal-mouth harmonisation with `goalmouth` and `fc goalmouth` (P2.1, MS5) are implemented and tested. Next: a maintenance round in football-shot-models, the git dependency switch, then football-passing-models on the same core and theme layer. See [`docs/roadmap.md`](docs/roadmap.md) and [`docs/modules.md`](docs/modules.md).
+> **Status:** built and tested: `pitch` (the piecewise provider mapping, goal mouth and goal
+> frame), `schema` (shots, freeze frames and the canonical matches table, each column tagged with
+> a leakage role), `io.snapshot` with the `fc` CLI, the StatsBomb open-data loader
+> `io.statsbomb`, the private WhoScored / Opta archive loader `io.whoscored` (git-ignored snapshot
+> and manifest), `goalmouth` with `fc goalmouth`, `viz` (the light and dark chart theme with
+> vendored Inter, the chart canvas and its machine checks) and `football_docs` (the docs-site
+> tooling: role rendering, page checks, theme, repository metadata check), with GitHub Actions
+> workflows for the checks and the docs site. Next: a maintenance round in
+> football-shot-models, the git dependency switch, then football-passing-models on the same core
+> and theme layer. See [`docs/roadmap.md`](docs/roadmap.md) and
+> [`docs/modules.md`](docs/modules.md).
 
 ## Why a shared package
 Every model repo needs the same three things: read events from different providers, put them

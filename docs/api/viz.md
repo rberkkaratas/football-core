@@ -1,7 +1,7 @@
 # viz
 
 Shot map and front-on goal-mouth plot on the canonical frame, with the data source credited
-automatically, and (CH1) the theme layer every publishable chart is drawn on. Install the `viz` extra (`uv add 'football-core[viz]'`; matplotlib only).
+automatically, and the theme layer every publishable chart is drawn on. Install the `viz` extra (`uv add 'football-core[viz]'`; matplotlib only).
 
 ```python
 from football_core import viz
@@ -17,7 +17,7 @@ ax.figure.savefig("outputs/shot-map.png", dpi=200, bbox_inches="tight")
     the keeper stopped the ball, not a projection onto the goal line, so saves can sit outside
     the frame. Projecting them onto the line is an xGOT follow-up.
 
-## Theme layer (CH1)
+## Theme layer
 
 Publishable charts are drawn on a themed canvas rather than on matplotlib's defaults.
 
@@ -26,7 +26,7 @@ Publishable charts are drawn on a themed canvas rather than on matplotlib's defa
   every text and mark token meets WCAG contrast on the surfaces it sits on (4.5:1 body text,
   3:1 large text and marks).
 - **Fonts.** Inter 4.0 (Regular, Medium, SemiBold, Bold; SIL Open Font License, `fonts/LICENSE.txt`)
-  ships as package data and is registered at import without touching `rcParams`, so the MS2
+  ships as package data and is registered at import without touching `rcParams`, so the earlier
   `shot_map` / `goal_mouth` keep matplotlib's default font. If a file is missing or does not
   resolve, `register_fonts` warns and the charts use DejaVu Sans (`FALLBACK_FAMILY`).
 - **Layout.** `canvas(theme, size, title=..., subtitle=..., footer=Footer(...), stats=...)` lays out
@@ -55,7 +55,7 @@ c = viz.canvas(
     footer=viz.Footer(("statsbomb",), model="xG: own model"),
 )
 assert viz.check(c) == []
-viz.save(c, "outputs/chart.png")  # outputs/ is git-ignored: no chart of real data is committed
+viz.save(c, "outputs/chart.png")  # git-ignored; a consumer's make docs-charts publishes
 ```
 
 ::: football_core.viz

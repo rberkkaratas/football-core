@@ -1,0 +1,39 @@
+# The fast checks of `make check` (lint, types, the test suite without slow tests, strict docs
+# build). Real-data reproduction (make reproduce) needs the git-ignored data/ and never runs here.
+name: check
+
+on:
+  push:
+    branches: ["**"]  # branches only: a tag push does not re-run the checks
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  # A newer push supersedes a branch's run; every commit on main keeps its own result.
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: football-core
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          path: football-core
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v10.3.0
+        with:
+          version: "0.11.16"
+          python-version: "3.12.13"
+          working-directory: football-core
+      # Lint these workflows with pinned actionlint and shellcheck (actionlint-py is an sdist that
+      # fetches the checksummed actionlint binary from github.com when uv builds it)
+      - run: uvx --from actionlint-py==1.7.12.25 --with shellcheck-py==0.11.0.1 actionlint
+      - run: uv sync --locked --all-groups
+      - run: make check

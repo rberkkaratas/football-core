@@ -1,6 +1,6 @@
 # io.whoscored
 
-The private WhoScored (Opta) CSV archive, loaded into the C3 `shots` table (with an empty
+The private WhoScored (Opta) CSV archive, loaded into the canonical `shots` table (with an empty
 `freeze_frames`) and the canonical `matches` table. The archive is read in place and never
 committed; the snapshot manifest records counts and a digest but no file list.
 

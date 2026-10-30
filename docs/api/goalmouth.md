@@ -1,6 +1,6 @@
 # goalmouth
 
-The P2.1 goal-mouth checks, counts only. Every distance is computed in the goal frame of
+The goal-mouth checks of the xGOT milestone, counts only. Every distance is computed in the goal frame of
 `pitch.to_goal_frame` (metres from the goal centre, y positive = the shooter's right); see
 [Conventions](../conventions.md#goal-mouth).
 
@@ -13,11 +13,11 @@ The P2.1 goal-mouth checks, counts only. Every distance is computed in the goal 
   zone of 76–87 lies on the left and every right zone on the right. Zones 73 / 75 (MissLeft /
   MissRight) are reported apart.
 - `fc goalmouth MANIFEST...` prints both tables and the goals-inside-the-frame share per provider
-  for verified snapshots and writes nothing. With `--check` it exits 1 when the MS5 criterion
+  for verified snapshots and writes nothing. With `--check` it exits 1 when the xGOT milestone's criterion
   fails (`criterion_problems`: under 99 % of a provider's goals inside the frame, or the Opta
   direction not confirmed), so a loader regression fails a command after a snapshot rebuild.
 
-MS6 adds the StatsBomb recording grid, counts only:
+The goalkeeper milestone adds the StatsBomb recording grid, counts only:
 
 - `match_grids(shots)` gives each StatsBomb match's recording grid, `"coarse"` (1 yd) or
   `"fine"` (0.1 yd), by the loader's `cell_offset` rule over the raw shot locations (null when no
